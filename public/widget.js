@@ -41,8 +41,13 @@
   const cfg = window.__TESUTO__ || {}
   const attr = (n) => (script && script.getAttribute("data-" + n)) || ""
   const PT_KEY = "tesuto:widget-project-token"
-  let TOKEN =
-    lsGet(PT_KEY) || cfg.token || attr("project-token") || ""
+  let TOKEN = lsGet(PT_KEY) || cfg.token || attr("project-token") || ""
+  // The host app hands the widget its signed-in user, so there's no sign-in
+  // screen. `{ name, email }` or nothing (→ shared "Widget" system user).
+  const CFG_USER =
+    cfg.user && cfg.user.name && cfg.user.email
+      ? { name: String(cfg.user.name), email: String(cfg.user.email) }
+      : null
   const ORIGIN = (
     cfg.origin ||
     attr("origin") ||
@@ -120,12 +125,12 @@
     const msg =
       (json && json.error && json.error.message) || `HTTP ${res.status}`
     if (res.status === 401 && !path.startsWith("/widget/auth")) {
-      // session expired (not a bad project token)
+      // session expired (not a bad project token) — re-mint silently
       if (userToken && !/token/i.test(msg)) {
         userToken = null
         ls.del(TK_KEY)
         state.me = null
-        go("signin")
+        void reconnect()
         throw new Error("unauthorized")
       }
     }
@@ -139,7 +144,6 @@
   const apiGet = (p) => apiRaw("GET", p)
   const apiPost = (p, b) => apiRaw("POST", p, b || {})
   const apiPatch = (p, b) => apiRaw("PATCH", p, b)
-  const apiDel = (p) => apiRaw("DELETE", p)
 
   /* ----------------------------- selector gen ---------------------------- */
   function selectorFor(el) {
@@ -426,9 +430,10 @@
 
   /* -------------------------------- state -------------------------------- */
   const state = {
-    view: "collapsed", // collapsed | tokenprompt | signin | actions | page | all | pick | pin | compose | issue
+    view: "collapsed", // collapsed | tokenprompt | actions | page | all | pick | pin | compose | issue
     theme: ls.get(THEME_KEY) || "system",
     badToken: false,
+    authError: false,
     project: null,
     me: null,
     columns: [],
@@ -496,10 +501,32 @@
     if (state.view === "tokenprompt" || !TOKEN || state.badToken) {
       return renderTokenPrompt()
     }
-    if (state.view === "signin" || !state.me) return renderSignin()
+    if (!state.me) return renderLoading()
     if (state.view === "compose") return renderCompose()
     if (state.view === "issue") return renderIssue()
     renderMain()
+  }
+
+  function renderLoading() {
+    const h = document.createElement("div")
+    h.className = "head"
+    h.innerHTML = `<div class="row"><div><h1>${escapeHtml(
+      (state.project && state.project.name) || "Tesuto",
+    )}</h1><p>Connecting…</p></div></div>`
+    h.querySelector(".row").appendChild(themeBar())
+    shell.appendChild(h)
+    const b = document.createElement("div")
+    b.className = "body"
+    b.innerHTML = `<div class="empty">${
+      state.authError
+        ? "Couldn't connect. Check the widget token."
+        : "One moment…"
+    }</div>`
+    shell.appendChild(b)
+    const f = document.createElement("div")
+    f.className = "foot"
+    f.appendChild(poweredEl())
+    shell.appendChild(f)
   }
 
   function headEl({ back, title, sub, idColor, right } = {}) {
@@ -558,69 +585,38 @@
   function footEl() {
     const f = document.createElement("div")
     f.className = "foot"
-    const ub = document.createElement("div")
-    ub.className = "userbar"
-    ub.innerHTML = `<span>${escapeHtml(state.me ? state.me.name : "")}</span>`
-    const so = document.createElement("button")
-    so.className = "signout"
-    so.innerHTML = `Sign out ${I.out}`
-    so.addEventListener("click", signOut)
-    ub.appendChild(so)
-    f.appendChild(ub)
+    if (state.me && state.me.name && state.me.name !== "Widget") {
+      const ub = document.createElement("div")
+      ub.className = "userbar"
+      ub.innerHTML = `<span>Commenting as <b style="color:var(--text)">${escapeHtml(
+        state.me.name,
+      )}</b></span>`
+      f.appendChild(ub)
+    }
     f.appendChild(poweredEl())
     return f
   }
 
-  /* ------------------------------ sign in ------------------------------- */
-  function renderSignin() {
-    const h = document.createElement("div")
-    h.className = "head"
-    h.innerHTML = `<div class="row"><div><h1>Sign in</h1><p>Comment on this page with ${escapeHtml(
-      (state.project && state.project.name) || "the team",
-    )}</p></div></div>`
-    h.querySelector(".row").appendChild(themeBar())
-    shell.appendChild(h)
-
-    const form = document.createElement("form")
-    form.className = "form"
-    form.innerHTML = `
-      <label>Name</label>
-      <input id="si-name" autocomplete="name" placeholder="Ada Lovelace" />
-      <label>Email</label>
-      <input id="si-email" type="email" autocomplete="email" placeholder="you@company.com" />
-      <div class="btnrow"><button class="btn primary" id="si-go" type="submit">Continue</button></div>
-      <div class="note" id="si-note"></div>`
-    shell.appendChild(form)
-    shell.appendChild(poweredOnly())
-    form.querySelector("#si-name").focus()
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault()
-      const name = form.querySelector("#si-name").value.trim()
-      const email = form.querySelector("#si-email").value.trim()
-      const note = form.querySelector("#si-note")
-      const btn = form.querySelector("#si-go")
-      if (!name || !email) return
-      btn.disabled = true
-      btn.textContent = "Signing in…"
-      try {
-        const r = await apiPost("/widget/auth", { name, email })
-        userToken = r.token
-        ls.set(TK_KEY, r.token)
-        await boot()
-        go("actions")
-      } catch (err) {
-        btn.disabled = false
-        btn.textContent = "Continue"
-        if (err && /token/i.test(err.message || "")) {
-          state.badToken = true
-          render()
-          return
-        }
-        note.textContent = "Couldn't sign in — check the address and try again."
-        note.classList.add("err")
-        console.error("[tesuto]", err)
+  /* ---------------------------- silent auth ---------------------------- */
+  // No sign-in screen — the host app already identifies the user. Mint a
+  // session from CFG_USER (or the shared "Widget" user) once, up front.
+  async function authSilently() {
+    // reuse a stored token only when there's no host user to track — with one,
+    // re-mint so the widget always matches whoever is logged into the host app
+    if (userToken && !CFG_USER) return true
+    try {
+      const r = await apiPost("/widget/auth", CFG_USER || {})
+      userToken = r.token
+      ls.set(TK_KEY, r.token)
+      return true
+    } catch (err) {
+      if (err && /token/i.test(err.message || "")) {
+        state.badToken = true
+      } else {
+        state.authError = true
       }
-    })
+      return false
+    }
   }
 
   /* --------------------------- project token prompt -------------------- */
@@ -662,8 +658,9 @@
         ls.set(PT_KEY, v)
         state.project = p
         state.badToken = false
-        if (userToken) await boot()
-        go(state.me ? "actions" : "signin")
+        state.authError = false
+        if (await authSilently()) await boot()
+        go("actions")
       } catch {
         btn.disabled = false
         btn.textContent = "Connect"
@@ -681,15 +678,12 @@
     return f
   }
 
-  async function signOut() {
-    try {
-      await apiDel("/widget/auth")
-    } catch {}
-    userToken = null
-    ls.del(TK_KEY)
-    state.me = null
+  async function reconnect() {
     stopThreadPoll()
-    go("signin")
+    state.view = state.view === "collapsed" ? "collapsed" : "actions"
+    render()
+    if (await authSilently()) await boot()
+    render()
   }
 
   /* ------------------------- main (tabs + lists) ------------------------ */
@@ -1268,11 +1262,10 @@
 
   ;(async () => {
     if (!TOKEN) {
-      render()
+      render() // → token prompt
       return
     }
-    // validate the project token up front (also gives us the project name for
-    // the sign-in screen)
+    // validate the project token, then mint a session for the host's user
     try {
       state.project = await apiGet("/widget/project")
     } catch {
@@ -1280,7 +1273,7 @@
       render()
       return
     }
-    if (userToken) await boot()
+    if (await authSilently()) await boot()
     render()
   })()
 

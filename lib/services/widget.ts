@@ -47,28 +47,53 @@ export async function widgetProjectInfo(req: Request) {
   return { id: p.id, key: p.key, name: p.name }
 }
 
-/** Name+email sign-in scoped to a widget (validates the project token too). */
+const WIDGET_USER_ID = "widget"
+
+/**
+ * Mints a widget session. The host app passes its logged-in user
+ * (`{ name, email }`); with nothing, the report is attributed to the shared
+ * "Widget" system user. Validates the project token either way.
+ */
 export async function widgetSignIn(
   req: Request,
-  input: { name: string; email: string },
+  input: { name?: string; email?: string },
 ) {
   await widgetProject(req)
-  const email = input.email.trim().toLowerCase()
-  const name = input.name.trim()
-  const count = await prisma.user.count()
-  const user = await prisma.user.upsert({
-    where: { email },
-    create: {
-      name,
-      email,
-      role: "member",
-      color: PROJECT_COLORS[count % PROJECT_COLORS.length],
-      active: true,
-    },
-    update: { name },
-  })
+  const email = input.email?.trim().toLowerCase()
+  const name = input.name?.trim()
+
+  let user: { id: string; name: string; color: string }
+  if (email && name) {
+    const count = await prisma.user.count()
+    user = await prisma.user.upsert({
+      where: { email },
+      create: {
+        name,
+        email,
+        role: "member",
+        color: PROJECT_COLORS[count % PROJECT_COLORS.length],
+        active: true,
+      },
+      update: { name },
+      select: { id: true, name: true, color: true },
+    })
+  } else {
+    user = await prisma.user.upsert({
+      where: { id: WIDGET_USER_ID },
+      create: {
+        id: WIDGET_USER_ID,
+        name: "Widget",
+        email: "widget@tesuto.local",
+        color: "#71717a",
+        role: "member",
+        active: false,
+      },
+      update: {},
+      select: { id: true, name: true, color: true },
+    })
+  }
   const token = await createSession(user.id)
-  return { user: { id: user.id, name: user.name, color: user.color }, token }
+  return { user, token }
 }
 
 export async function widgetSignOut(req: Request) {

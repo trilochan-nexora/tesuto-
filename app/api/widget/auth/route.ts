@@ -3,8 +3,8 @@ import { widgetRoute } from "@/lib/api"
 import { widgetSignIn, widgetSignOut } from "@/lib/services/widget"
 
 const SignInSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
+  name: z.string().min(1).optional(),
+  email: z.string().email().optional(),
 })
 
 export function OPTIONS() {

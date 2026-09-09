@@ -37,7 +37,9 @@ export function initTesutoWidget(opts = {}) {
   window.__TESUTO__ = {
     token: opts.token,
     origin: origin.replace(/\/$/, ""),
-    endpoint: opts.endpoint,
+    // the host app's signed-in user — { name, email } — so the widget needs no
+    // sign-in of its own
+    user: opts.user,
     shortcut: opts.shortcut,
   }
 

@@ -30,14 +30,19 @@ function api(method, path, body) {
   const p = u.pathname.replace("/api", "")
   if (p === "/widget/project")
     return { data: { id: "p1", key: "SAND", name: "Asterconsult" } }
-  if (p === "/widget/auth" && method === "POST")
+  if (p === "/widget/auth" && method === "POST") {
+    const name = body?.name || "Widget"
     return {
       data: {
-        user: { id: "u1", name: body.name, color: "#7c5cff" },
+        user: {
+          id: name === "Widget" ? "widget" : "u1",
+          name,
+          color: "#7c5cff",
+        },
         token: "tok_1",
       },
     }
-  if (p === "/widget/auth" && method === "DELETE") return { data: { ok: true } }
+  }
   if (p === "/widget/bootstrap")
     return {
       data: {
@@ -105,7 +110,11 @@ const dom = new JSDOM(
   },
 )
 const { window } = dom
-window.__TESUTO__ = { token: "tsto_pk_x", origin: "http://t.local" }
+window.__TESUTO__ = {
+  token: "tsto_pk_x",
+  origin: "http://t.local",
+  user: { name: "Dipen Raut", email: "dipen@x.com" },
+}
 window.fetch = async (url, init = {}) => {
   const method = init.method || "GET"
   const body = init.body ? JSON.parse(init.body) : undefined
@@ -149,27 +158,23 @@ const $$ = (s) => [...root.querySelectorAll(s)]
 const tick = () => new Promise((r) => setTimeout(r, 20))
 
 await tick()
+await tick()
 ok("fab renders collapsed", !!$(".fab") && $(".panel").style.display === "none")
 
 $(".fab").click()
 await tick()
-ok("opens to sign-in (no token)", !!$(".form input#si-name"))
-
-$("#si-name").value = "Dipen Raut"
-$("#si-email").value = "dipen@x.com"
-$("form").dispatchEvent(new window.Event("submit"))
-await tick()
 await tick()
 ok(
-  "after sign-in → header shows project name",
-  $(".head h1")?.textContent === "Asterconsult",
+  "opens straight to Actions (no sign-in screen)",
+  $(".head h1")?.textContent === "Asterconsult" && !$("#si-name"),
 )
 ok("three tabs render", $$(".tabs button").length === 3)
 ok("Actions tab: two action cards", $$(".actioncard").length === 2)
 ok(
-  "footer shows user + Sign out",
-  /Dipen Raut/.test($(".userbar")?.textContent || "") &&
-    /Sign out/.test($(".userbar")?.textContent || ""),
+  "footer: 'Commenting as <host user>', no Sign out",
+  /Commenting as/.test($(".userbar")?.textContent || "") &&
+    /Dipen Raut/.test($(".userbar")?.textContent || "") &&
+    !$(".signout"),
 )
 ok(
   "branding: Made by Nexora",
@@ -243,12 +248,6 @@ ok("back button returns to a tab list", !!$(".tabs"))
 $$(".themebar button")[0].click()
 await tick()
 ok("theme toggle sets data-theme=light", $(".wrap")?.dataset.theme === "light")
-
-// sign out
-$(".userbar .signout").click()
-await tick()
-await tick()
-ok("sign out → back to sign-in screen", !!$("#si-name"))
 
 console.log(failures ? `\n${failures} failing` : "\nall green")
 process.exit(failures ? 1 : 0)

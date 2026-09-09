@@ -148,7 +148,22 @@ r = await fetch(`${BASE}/widget/auth`, {
   },
   body: JSON.stringify({ name: "Widget Guy", email: "wguy@x.com" }),
 }).then((x) => x.json())
-assert("widget signin → user + token", r.data?.token && r.data?.user?.id)
+assert(
+  "widget auth (host user) → user + token",
+  r.data?.token && r.data?.user?.id,
+)
+r = await fetch(`${BASE}/widget/auth`, {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "x-tesuto-project": project.token,
+  },
+  body: JSON.stringify({}),
+}).then((x) => x.json())
+assert(
+  "widget auth (anonymous) → 'Widget' user",
+  r.data?.token && r.data?.user?.id === "widget",
+)
 r = await fetch(`${BASE}/widget/bootstrap`, { headers: wh }).then((x) =>
   x.json(),
 )
