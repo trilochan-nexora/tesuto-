@@ -1,10 +1,38 @@
 import { HttpError } from "@/lib/api"
 import { createSession } from "@/lib/auth"
+import { decryptToken, encryptToken } from "@/lib/crypto"
 import { prisma } from "@/lib/db"
 import { PROJECT_COLORS } from "@/lib/types"
 
-export function listUsers() {
-  return prisma.user.findMany({ orderBy: { name: "asc" } })
+/**
+ * The decrypted GitHub access token of a connected user — for server-side
+ * pulls (Projects import) and issue creation. Callers never see it over HTTP.
+ */
+export async function connectedGithubToken(userId: string): Promise<string> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { githubConnected: true, githubToken: true },
+  })
+  if (!user?.githubConnected || !user.githubToken) {
+    throw new HttpError("Connect your GitHub account first", 400)
+  }
+  return decryptToken(user.githubToken)
+}
+
+/**
+ * Drops server-only fields (`githubToken`) before a user row reaches the API
+ * envelope. Apply everywhere a Prisma user is serialized to the client.
+ */
+export function publicUser<T extends { githubToken?: string | null }>(
+  user: T,
+): Omit<T, "githubToken"> {
+  const { githubToken: _token, ...rest } = user
+  return rest
+}
+
+export async function listUsers() {
+  const users = await prisma.user.findMany({ orderBy: { name: "asc" } })
+  return users.map(publicUser)
 }
 
 export async function signIn(input: { name: string; email: string }) {
@@ -23,7 +51,7 @@ export async function signIn(input: { name: string; email: string }) {
     update: { name },
   })
   const token = await createSession(user.id)
-  return { user, token }
+  return { user: publicUser(user), token }
 }
 
 export async function createUser(input: {
@@ -37,7 +65,7 @@ export async function createUser(input: {
   if (existing)
     throw new HttpError("A user with that email already exists", 409)
   const count = await prisma.user.count()
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       name: input.name.trim(),
       email,
@@ -47,6 +75,7 @@ export async function createUser(input: {
       active: true,
     },
   })
+  return publicUser(user)
 }
 
 export async function updateUser(
@@ -64,16 +93,17 @@ export async function updateUser(
 ) {
   const exists = await prisma.user.findUnique({ where: { id } })
   if (!exists) throw new HttpError("User not found", 404)
-  return prisma.user.update({
+  const user = await prisma.user.update({
     where: { id },
     data: {
       ...patch,
       email: patch.email ? patch.email.trim().toLowerCase() : undefined,
     },
   })
+  return publicUser(user)
 }
 
-export function updateProfile(
+export async function updateProfile(
   id: string,
   patch: {
     name?: string
@@ -83,12 +113,29 @@ export function updateProfile(
     githubLogin?: string | null
   },
 ) {
-  return prisma.user.update({ where: { id }, data: patch })
+  const user = await prisma.user.update({ where: { id }, data: patch })
+  return publicUser(user)
 }
 
-export function setGithubConnected(id: string, connected: boolean) {
+/** OAuth callback: stores the (encrypted) token and marks the account linked. */
+export async function linkGithubAccount(
+  id: string,
+  input: { login: string; token: string },
+) {
+  const user = await prisma.user.update({
+    where: { id },
+    data: {
+      githubLogin: input.login,
+      githubToken: encryptToken(input.token),
+      githubConnected: true,
+    },
+  })
+  return publicUser(user)
+}
+
+export function unlinkGithubAccount(id: string) {
   return prisma.user.update({
     where: { id },
-    data: { githubConnected: connected },
+    data: { githubLogin: null, githubToken: null, githubConnected: false },
   })
 }

@@ -206,4 +206,22 @@ sketched in §4, but a simpler opaque-bearer-token auth (deliberate for v1).
 
 **Not built**: the real `widget.js` bundle (still the `localStorage` prototype;
 redesign to the panel mockup + `/api/widget/*` routes is the next pass),
-step 7's real GitHub OAuth.
+two-way GitHub webhook sync (out of v1 scope by design — see §7).
+
+**Since the last pass:**
+- **GitHub OAuth is real** — `GET /api/github/connect` + `/api/github/callback`
+  (HMAC-signed state, token encrypted at rest with `APP_SECRET` via
+  AES-256-GCM). Per-project target repo (`Project.githubRepo`) set in project
+  settings. `POST /api/tickets/[id]/sync-github` creates a real issue under the
+  acting user's account and stores the URL — no more fake URLs.
+- **Notifications** — `lib/notify.ts` posts ticket events (created / assigned /
+  moved to done / commented) to a global Slack incoming webhook and emails the
+  assignee through Resend. Both are optional (env-gated) and fire-and-forget.
+- **Integration toggles** — a `Settings` key/value table powers workspace-wide
+  switches (Slack, email, GitHub sync, GitHub Projects import, ClickUp import)
+  in Settings → Integrations (admin). Rows default to on; routes and the
+  notifier enforce them (403/quiet-skip).
+- **External imports** — Projects → Import pulls **GitHub Projects (v2)**
+  (GraphQL, via the user's own OAuth token, `read:project` scope added) or
+  **ClickUp** (pasted `pk_` token, never stored) into a new Tesuto project.
+  Imported items become tasks; closed/merged arrive resolved.

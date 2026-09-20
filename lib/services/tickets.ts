@@ -1,8 +1,19 @@
 import { HttpError } from "@/lib/api"
+import { decryptToken } from "@/lib/crypto"
 import { prisma } from "@/lib/db"
+import { appUrl } from "@/lib/env"
+import { createGithubIssue } from "@/lib/github"
+import {
+  type NotifyTicket,
+  notifyTicketAssigned,
+  notifyTicketCreated,
+  notifyTicketResolved,
+  notifyTicketUnassigned,
+} from "@/lib/notify"
 import type { TicketEvent } from "@/lib/types"
 import { DEFAULT_COLUMNS } from "@/lib/types"
 import { Prisma } from "@/prisma/generated/client"
+import { getSetting } from "./settings"
 
 function nextKey(projectKey: string, keys: string[]) {
   const nums = keys
@@ -16,6 +27,36 @@ async function isTerminal(status: string) {
   const col = await prisma.column.findUnique({ where: { id: status } })
   if (col) return col.terminal
   return DEFAULT_COLUMNS.find((c) => c.id === status)?.terminal ?? false
+}
+
+async function statusLabel(status: string) {
+  const col = await prisma.column.findUnique({ where: { id: status } })
+  return (
+    col?.label ?? DEFAULT_COLUMNS.find((c) => c.id === status)?.label ?? status
+  )
+}
+
+/** Slim ticket view the notifier needs (project name/key ride along). */
+function toNotifyTicket(
+  ticket: {
+    id: string
+    key: string
+    title: string
+    priority: string
+    sourceUrl: string | null
+    assigneeId: string | null
+  },
+  project: { name: string; key: string } | null,
+): NotifyTicket {
+  return {
+    id: ticket.id,
+    key: ticket.key,
+    title: ticket.title,
+    priority: ticket.priority,
+    sourceUrl: ticket.sourceUrl,
+    assigneeId: ticket.assigneeId,
+    project: project ? { name: project.name, key: project.key } : null,
+  }
 }
 
 export type TicketFilters = {
@@ -61,6 +102,7 @@ export type NewTicketInput = {
   status?: string
   sourceUrl?: string
   screenshotUrl?: string
+  recordingUrl?: string
   annotations?: unknown
   domSnapshot?: unknown
   context?: unknown
@@ -99,6 +141,7 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
     parentId: input.parentId ?? null,
     sourceUrl: input.sourceUrl ?? null,
     screenshotUrl: input.screenshotUrl ?? null,
+    recordingUrl: input.recordingUrl ?? null,
     annotations: (input.annotations ?? undefined) as Prisma.InputJsonValue,
     domSnapshot: (input.domSnapshot ?? undefined) as Prisma.InputJsonValue,
     context: (input.context ?? undefined) as Prisma.InputJsonValue,
@@ -115,7 +158,7 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
       select: { key: true },
     })
     try {
-      return await prisma.ticket.create({
+      const ticket = await prisma.ticket.create({
         data: {
           ...data,
           key: nextKey(
@@ -124,6 +167,19 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
           ),
         },
       })
+      notifyTicketCreated(
+        {
+          id: ticket.id,
+          key: ticket.key,
+          title: ticket.title,
+          priority: ticket.priority,
+          sourceUrl: ticket.sourceUrl,
+          assigneeId: ticket.assigneeId,
+          project: { name: project.name, key: project.key },
+        },
+        actorId,
+      )
+      return ticket
     } catch (err) {
       if (attempt === 0 && (err as { code?: string }).code === "P2002") {
         continue
@@ -152,7 +208,10 @@ export async function patchTicket(
   patch: TicketPatch,
   actorId: string,
 ) {
-  const current = await prisma.ticket.findUnique({ where: { id } })
+  const current = await prisma.ticket.findUnique({
+    where: { id },
+    include: { project: true },
+  })
   if (!current) throw new HttpError("Ticket not found", 404)
 
   const iso = new Date()
@@ -178,6 +237,10 @@ export async function patchTicket(
       : { disconnect: true }
   }
 
+  let assignedTo: string | null = null
+  let unassignedFrom: string | null = null
+  let resolvedInto: string | null = null
+
   if ("assigneeId" in patch && patch.assigneeId !== current.assigneeId) {
     if (patch.assigneeId) {
       data.assignee = { connect: { id: patch.assigneeId } }
@@ -189,6 +252,7 @@ export async function patchTicket(
         to: patch.assigneeId,
       })
       if (!current.assignedAt) data.assignedAt = iso
+      assignedTo = patch.assigneeId
     } else {
       data.assignee = { disconnect: true }
       events.push({
@@ -197,6 +261,7 @@ export async function patchTicket(
         actorId,
         from: current.assigneeId ?? undefined,
       })
+      unassignedFrom = current.assigneeId ?? null
     }
   }
 
@@ -210,10 +275,59 @@ export async function patchTicket(
       to: patch.status,
     })
     data.resolvedAt = (await isTerminal(patch.status)) ? iso : null
+    if (await isTerminal(patch.status)) resolvedInto = patch.status
   }
 
   data.events = events as unknown as Prisma.InputJsonValue
-  return prisma.ticket.update({ where: { id }, data })
+  const updated = await prisma.ticket.update({ where: { id }, data })
+
+  void sendPatchNotifications({
+    ticket: updated,
+    project: current.project,
+    actorId,
+    assignedTo,
+    unassignedFrom,
+    resolvedInto,
+  })
+
+  return updated
+}
+
+async function sendPatchNotifications(input: {
+  ticket: {
+    id: string
+    key: string
+    title: string
+    priority: string
+    sourceUrl: string | null
+    assigneeId: string | null
+  }
+  project: { name: string; key: string } | null
+  actorId: string
+  assignedTo: string | null
+  unassignedFrom: string | null
+  resolvedInto: string | null
+}) {
+  const { ticket, project } = input
+  const base = toNotifyTicket(ticket, project)
+  if (input.resolvedInto) {
+    const label = await statusLabel(input.resolvedInto)
+    notifyTicketResolved(base, label, input.actorId)
+  }
+  if (input.assignedTo) {
+    const assignee = await prisma.user.findUnique({
+      where: { id: input.assignedTo },
+      select: { name: true },
+    })
+    notifyTicketAssigned(base, assignee?.name ?? "a teammate", input.actorId)
+  }
+  if (input.unassignedFrom) {
+    const previous = await prisma.user.findUnique({
+      where: { id: input.unassignedFrom },
+      select: { name: true },
+    })
+    notifyTicketUnassigned(base, previous?.name ?? "a teammate", input.actorId)
+  }
 }
 
 export async function bulkMove(ids: string[], status: string, actorId: string) {
@@ -254,20 +368,73 @@ export async function deleteTickets(ids: string[]) {
   return { deleted: count }
 }
 
+function issueBody(ticket: {
+  id: string
+  key: string
+  title: string
+  description: string | null
+  sourceUrl: string | null
+}) {
+  const parts: string[] = []
+  if (ticket.description?.trim()) parts.push(ticket.description.trim())
+  const context: string[] = []
+  if (ticket.sourceUrl) context.push(`Reported from: ${ticket.sourceUrl}`)
+  context.push(`Tesuto ticket: ${appUrl()}/tickets/${ticket.id}`)
+  parts.push(`<!-- tesuto -->\n${context.join("\n")}`)
+  return parts.join("\n\n")
+}
+
+/**
+ * The real GitHub sync: the acting user must have connected via OAuth
+ * (Settings → Connections) and the project must name a repo. Creates an
+ * issue under the user's own account and stores the link on the ticket.
+ * The board stays the source of truth — no two-way sync.
+ */
 export async function syncTicketToGithub(id: string, actorId: string) {
-  const ticket = await prisma.ticket.findUnique({
-    where: { id },
-    include: { project: true },
-  })
+  const [user, ticket] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: actorId },
+      select: { githubConnected: true, githubToken: true },
+    }),
+    prisma.ticket.findUnique({
+      where: { id },
+      include: { project: true },
+    }),
+  ])
   if (!ticket) throw new HttpError("Ticket not found", 404)
-  const repo = ticket.project.name.toLowerCase().replace(/\s+/g, "-")
-  const num = Math.floor(100 + Math.random() * 800)
+
+  if (!(await getSetting("integration.github_sync"))) {
+    throw new HttpError(
+      "GitHub sync is disabled — enable it in Settings → Integrations",
+      403,
+    )
+  }
+
+  if (!user?.githubConnected || !user.githubToken) {
+    throw new HttpError("Connect your GitHub account first", 400)
+  }
+  const repo = ticket.project.githubRepo?.trim()
+  if (!repo) {
+    throw new HttpError(
+      `Set a GitHub repo for ${ticket.project.name} first (project settings)`,
+      400,
+    )
+  }
+
+  const token = decryptToken(user.githubToken)
+  const { htmlUrl } = await createGithubIssue({
+    token,
+    repo,
+    title: `${ticket.key}: ${ticket.title}`,
+    body: issueBody(ticket),
+  })
+
   const events = [...((ticket.events as unknown as TicketEvent[]) ?? [])]
   events.push({ at: new Date().toISOString(), kind: "synced", actorId })
   return prisma.ticket.update({
     where: { id },
     data: {
-      githubIssueUrl: `https://github.com/company/${repo}/issues/${num}`,
+      githubIssueUrl: htmlUrl,
       events: events as unknown as Prisma.InputJsonValue,
     },
   })

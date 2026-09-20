@@ -10,6 +10,9 @@
  * it only loads once. Options:
  *   token      required — a project's widget token (Tesuto → project → settings)
  *   origin     where widget.js is served (default: this module's origin)
+ *   assertion  signed host-identity assertion minted by your server (verified
+ *              mode — Tesuto proves the signature before trusting the user)
+ *   user       legacy dev mode — bare { name, email } claim, no proof
  *   endpoint   POST reports here as JSON instead of the localStorage fallback
  *   shortcut   keyboard toggle, e.g. "alt+b" (default "mod+shift+b")
  */
@@ -37,8 +40,10 @@ export function initTesutoWidget(opts = {}) {
   window.__TESUTO__ = {
     token: opts.token,
     origin: origin.replace(/\/$/, ""),
-    // the host app's signed-in user — { name, email } — so the widget needs no
-    // sign-in of its own
+    // verified mode: signed identity assertion from your server (preferred)
+    assertion: opts.assertion,
+    // legacy dev mode: the host app's signed-in user — { name, email } — so
+    // the widget needs no sign-in of its own
     user: opts.user,
     shortcut: opts.shortcut,
   }

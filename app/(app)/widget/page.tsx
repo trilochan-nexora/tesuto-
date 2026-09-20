@@ -57,7 +57,8 @@ type Picked = {
 type Filed = { key: string; id: string; title: string; project: string }
 
 export default function WidgetPage() {
-  const { addTicket, resolveProjectByToken, projects, users } = useStore()
+  const { addTicket, resolveProjectByToken, projects, users, currentUser } =
+    useStore()
 
   const sandbox = projects.find((p) => p.key === "SAND")
   const [token, setToken] = useState(sandbox?.token ?? "")
@@ -76,11 +77,21 @@ export default function WidgetPage() {
   const [picked, setPicked] = useState<Picked | null>(null)
   const [shot, setShot] = useState<string | null>(null)
   const [capturing, setCapturing] = useState(false)
+  const [recording, setRecording] = useState<string | null>(null)
+  const [recState, setRecState] = useState<
+    "idle" | "starting" | "recording" | "error"
+  >("idle")
+  const [recErr, setRecErr] = useState("")
+  const [recElapsed, setRecElapsed] = useState(0)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [telemetry, setTelemetry] = useState<WidgetTelemetry>({
     consoleErrors: [],
     failedRequests: [],
   })
+
+  const [signingIn, setSigningIn] = useState(false)
+  const [signInName, setSignInName] = useState("")
+  const [signInEmail, setSignInEmail] = useState("")
 
   const [title, setTitle] = useState("")
   const [note, setNote] = useState("")
@@ -91,11 +102,18 @@ export default function WidgetPage() {
   const [realLoaded, setRealLoaded] = useState(false)
 
   function loadRealWidget() {
-    if (document.getElementById("tesuto-widget-script") || !resolved) return
+    if (document.getElementById("tesuto-widget-script") || !resolved)
+      return // Hand the widget the signed-in user the way a host app does (via
+      // window.__TESUTO__) — unless we're simulating a signed-out visitor.
+    ;(window as unknown as { __TESUTO__?: unknown }).__TESUTO__ = {
+      token: resolved.token,
+      user: notSignedIn
+        ? undefined
+        : { name: currentUser.name, email: currentUser.email },
+    }
     const s = document.createElement("script")
     s.id = "tesuto-widget-script"
     s.src = "/widget.js"
-    s.setAttribute("data-project-token", resolved.token)
     document.body.appendChild(s)
     setRealLoaded(true)
   }
@@ -103,6 +121,23 @@ export default function WidgetPage() {
   const frameRef = useRef<HTMLDivElement>(null)
   const captureRef = useRef<HTMLDivElement>(null)
   const hoverElRef = useRef<HTMLElement | null>(null)
+  const recRef = useRef<{
+    recorder: MediaRecorder | null
+    stream: MediaStream | null
+    chunks: Blob[]
+    timer: number | null
+    startedAt: number
+    active: boolean
+    resolve: ((v: string | null) => void) | null
+  }>({
+    recorder: null,
+    stream: null,
+    chunks: [],
+    timer: null,
+    startedAt: 0,
+    active: false,
+    resolve: null,
+  })
 
   // Run the scene's bug once and capture the real error + failed request.
   useEffect(() => {
@@ -208,6 +243,193 @@ export default function WidgetPage() {
     setShot(fallbackShot(sel))
   }
 
+  /* Screen recording (mirrors public/widget.js): getDisplayMedia +
+     MediaRecorder, 60 s / 10 MB caps, attached as a data URL on submit. */
+  const REC_MAX_S = 60
+  const REC_MAX_BYTES = 10 * 1024 * 1024
+
+  function recSupported() {
+    const md = navigator.mediaDevices
+    return (
+      !!md &&
+      typeof md.getDisplayMedia === "function" &&
+      typeof MediaRecorder === "function"
+    )
+  }
+
+  function cleanupRec() {
+    const r = recRef.current
+    r.active = false
+    if (r.timer) {
+      window.clearInterval(r.timer)
+      r.timer = null
+    }
+    if (r.stream) {
+      try {
+        r.stream.getTracks().forEach((t) => {
+          t.stop()
+        })
+      } catch {}
+      r.stream = null
+    }
+    r.recorder = null
+    r.chunks = []
+  }
+
+  function finishRecording() {
+    const r = recRef.current
+    r.active = false
+    const chunks = r.chunks.slice()
+    const mime = r.recorder?.mimeType || "video/webm"
+    const resolve = r.resolve
+    r.resolve = null
+    cleanupRec()
+    const done = (v: string | null) => resolve?.(v)
+    const blob = new Blob(chunks, { type: mime })
+    if (!blob.size) {
+      setRecState("idle")
+      done(null)
+      return
+    }
+    if (blob.size > REC_MAX_BYTES) {
+      setRecording(null)
+      setRecState("error")
+      setRecErr("too-large")
+      done(null)
+      return
+    }
+    const fr = new FileReader()
+    fr.onload = () => {
+      const url = String(fr.result || "")
+      setRecording(url || null)
+      setRecState(url ? "idle" : "error")
+      if (!url) setRecErr("failed")
+      done(url || null)
+    }
+    fr.onerror = () => {
+      setRecState("error")
+      setRecErr("failed")
+      done(null)
+    }
+    fr.readAsDataURL(blob)
+  }
+
+  async function startRecording() {
+    if (!recSupported()) {
+      setRecState("error")
+      setRecErr("unsupported")
+      return
+    }
+    setRecording(null)
+    setRecState("starting")
+    setRecErr("")
+    setRecElapsed(0)
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      })
+    } catch (err) {
+      setRecState("idle")
+      if (
+        err instanceof DOMException &&
+        (err.name === "NotAllowedError" || err.name === "AbortError")
+      ) {
+        return
+      }
+      setRecState("error")
+      setRecErr("failed")
+      return
+    }
+    const mime = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find(
+      (m) => {
+        try {
+          return MediaRecorder.isTypeSupported(m)
+        } catch {
+          return false
+        }
+      },
+    )
+    const r = recRef.current
+    try {
+      r.recorder = mime
+        ? new MediaRecorder(stream, {
+            mimeType: mime,
+            videoBitsPerSecond: 1500000,
+          })
+        : new MediaRecorder(stream)
+    } catch {
+      try {
+        stream.getTracks().forEach((t) => {
+          t.stop()
+        })
+      } catch {}
+      setRecState("error")
+      setRecErr("failed")
+      return
+    }
+    r.stream = stream
+    r.chunks = []
+    r.startedAt = Date.now()
+    r.recorder.ondataavailable = (e) => {
+      if (e.data?.size) r.chunks.push(e.data)
+    }
+    r.recorder.onstop = () => finishRecording()
+    stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+      void stopRecording()
+    })
+    try {
+      r.recorder.start(500)
+    } catch {
+      cleanupRec()
+      setRecState("error")
+      setRecErr("failed")
+      return
+    }
+    r.active = true
+    setRecState("recording")
+    r.timer = window.setInterval(() => {
+      const elapsed = Date.now() - r.startedAt
+      setRecElapsed(elapsed)
+      if (elapsed >= REC_MAX_S * 1000) void stopRecording()
+    }, 500)
+  }
+
+  function stopRecording() {
+    const r = recRef.current
+    return new Promise<string | null>((resolve) => {
+      if (!r.recorder || !r.active) {
+        cleanupRec()
+        resolve(recording)
+        return
+      }
+      r.resolve = resolve
+      try {
+        r.recorder.stop()
+      } catch {
+        cleanupRec()
+        resolve(recording)
+      }
+    })
+  }
+
+  // Stop any capture when leaving the page.
+  useEffect(
+    () => () => {
+      const r = recRef.current
+      if (r.timer) window.clearInterval(r.timer)
+      if (r.stream) {
+        try {
+          r.stream.getTracks().forEach((t) => {
+            t.stop()
+          })
+        } catch {}
+      }
+    },
+    [],
+  )
+
   function onPick(p: Picked) {
     setPicked(p)
     setPicking(false)
@@ -233,6 +455,14 @@ export default function WidgetPage() {
   function resetReport() {
     setPicked(null)
     setShot(null)
+    setRecording(null)
+    setRecState("idle")
+    setRecErr("")
+    setRecElapsed(0)
+    void stopRecording().then(() => {
+      setRecording(null)
+      setRecState("idle")
+    })
     setAnnotations([])
     setTitle("")
     setNote("")
@@ -244,6 +474,7 @@ export default function WidgetPage() {
   async function submit() {
     if (!picked || !authed) return
     const client = detectClient()
+    const clip = await stopRecording()
     let ticket: Awaited<ReturnType<typeof addTicket>>
     try {
       ticket = await addTicket({
@@ -255,6 +486,7 @@ export default function WidgetPage() {
         assigneeId: assigneeId === "unassigned" ? undefined : assigneeId,
         sourceUrl: `https://demo.tesuto.app${scene.path}`,
         screenshotUrl: shot ?? undefined,
+        recordingUrl: clip ?? undefined,
         annotations: annotations.length ? annotations : undefined,
         domSnapshot: {
           selector: picked.selector,
@@ -469,11 +701,62 @@ export default function WidgetPage() {
                   </>
                 )}
               </button>
+            ) : signingIn ? (
+              <div className="absolute bottom-5 right-5 z-20 w-72 rounded-xl border border-border bg-card p-4 shadow-lg ring-1 ring-foreground/10">
+                <form
+                  className="flex flex-col gap-3"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (!signInName.trim() || !signInEmail.trim()) return
+                    setNotSignedIn(false)
+                    setSigningIn(false)
+                  }}
+                >
+                  <div className="flex items-center gap-1.5 text-sm font-medium">
+                    <LogIn className="size-4" />
+                    Sign in to Tesuto
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    File issues and comment. Dev mode: any name + email
+                    works.
+                  </p>
+                  <Input
+                    autoFocus
+                    placeholder="Your name"
+                    value={signInName}
+                    onChange={(e) => setSignInName(e.target.value)}
+                  />
+                  <Input
+                    type="email"
+                    placeholder="you@company.com"
+                    value={signInEmail}
+                    onChange={(e) => setSignInEmail(e.target.value)}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setSigningIn(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" size="sm" className="flex-1">
+                      Sign in
+                    </Button>
+                  </div>
+                </form>
+              </div>
             ) : (
-              <div className="absolute bottom-5 right-5 z-20 flex items-center gap-2 rounded-full bg-foreground/90 px-4 py-2.5 text-sm font-medium text-background shadow-lg">
+              <button
+                type="button"
+                onClick={() => setSigningIn(true)}
+                className="absolute bottom-5 right-5 z-20 flex items-center gap-2 rounded-full bg-foreground/90 px-4 py-2.5 text-sm font-medium text-background shadow-lg transition-colors hover:bg-foreground"
+              >
                 <LogIn className="size-4" />
                 Sign in to Tesuto to report
-              </div>
+              </button>
             )
           ) : null}
         </div>
@@ -537,6 +820,76 @@ export default function WidgetPage() {
                     editable
                   />
                 ) : null}
+
+                <div className="mt-3">
+                  {recState === "recording" ? (
+                    <div className="flex items-center gap-2 rounded-xl bg-muted/50 px-3 py-2.5 text-sm">
+                      <span className="size-2.5 animate-pulse rounded-full bg-red-500" />
+                      Recording{" "}
+                      {`${Math.floor(recElapsed / 60000)}:${String(Math.floor(recElapsed / 1000) % 60).padStart(2, "0")}`}{" "}
+                      · up to 1:00
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="ml-auto"
+                        onClick={() => void stopRecording()}
+                      >
+                        Stop
+                      </Button>
+                    </div>
+                  ) : recording ? (
+                    <div className="flex flex-col gap-1.5">
+                      {/* biome-ignore lint/a11y/useMediaCaption: demo clip recorded in-session, no captions exist */}
+                      <video
+                        src={recording}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        className="w-full rounded-xl border border-border bg-black"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRecording(null)
+                          setRecState("idle")
+                        }}
+                        className="w-fit text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Remove recording
+                      </button>
+                    </div>
+                  ) : recSupported() ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void startRecording()}
+                      disabled={recState === "starting"}
+                    >
+                      <span className="size-2 rounded-full bg-red-500" />
+                      {recState === "starting"
+                        ? "Starting — allow the share prompt…"
+                        : "Record screen (up to 1 min)"}
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Screen recording isn&apos;t available in this browser.
+                    </p>
+                  )}
+                  {recState === "error" ? (
+                    <p className="mt-1.5 text-xs text-destructive">
+                      {recErr === "too-large"
+                        ? "That clip is over 10 MB — discarded. Try a shorter one."
+                        : "Couldn't record."}{" "}
+                      <button
+                        type="button"
+                        onClick={() => void startRecording()}
+                        className="underline"
+                      >
+                        Retry
+                      </button>
+                    </p>
+                  ) : null}
+                </div>
               </div>
 
               <div className="flex flex-col gap-2.5">

@@ -14,7 +14,6 @@ import { toast } from "sonner"
 import { AppHeader } from "@/components/app-header"
 import { GithubIcon } from "@/components/icons"
 import { NewTicketDialog } from "@/components/new-ticket-dialog"
-import { PageBack } from "@/components/page-back"
 import {
   isEmptyHtml,
   RichText,
@@ -79,13 +78,18 @@ export default function TicketDetailPage({
     syncToGithub,
     currentUser,
     githubConnected,
+    integrations,
   } = useStore()
+
+  const githubSyncOff = !integrations.githubSync.enabled
 
   const router = useRouter()
   const ticket = getTicket(id)
   const [draft, setDraft] = useState("")
   const [editingDesc, setEditingDesc] = useState(false)
   const [descDraft, setDescDraft] = useState("")
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState("")
 
   if (!ticket) notFound()
 
@@ -106,6 +110,12 @@ export default function TicketDetailPage({
   }
 
   function handleSync() {
+    if (githubSyncOff) {
+      toast.error("GitHub sync is off", {
+        description: "An admin can enable it in Settings → Integrations.",
+      })
+      return
+    }
     if (!githubConnected) {
       toast.error("Connect your GitHub account first", {
         description: "Settings → Connections",
@@ -116,10 +126,23 @@ export default function TicketDetailPage({
       })
       return
     }
+    if (!project?.githubRepo) {
+      toast.error(`Set a GitHub repo for ${project?.name ?? "this project"}`, {
+        description: "The sync needs a target repository.",
+        action: {
+          label: "Project settings",
+          onClick: () => router.push(`/projects/${project?.id}/settings`),
+        },
+      })
+      return
+    }
     syncToGithub(ticket!.id)
-    toast.success("Issue created on GitHub", {
-      description: `${project?.name} · opened as ${currentUser.name}`,
-    })
+      .then(() =>
+        toast.success("Issue created on GitHub", {
+          description: `${project.name} · opened as ${currentUser.name}`,
+        }),
+      )
+      .catch(() => {})
   }
 
   return (
@@ -127,9 +150,7 @@ export default function TicketDetailPage({
       <AppHeader title={ticket.key} description={ticket.title} />
 
       <div className="w-full p-4 md:p-8">
-        <PageBack href="/inbox" label="Inbox" />
-
-        <div className="mt-4 grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
           {/* Main column */}
           <div className="flex min-w-0 flex-col gap-8">
             <div className="flex flex-col gap-3">
@@ -157,20 +178,53 @@ export default function TicketDetailPage({
                   opened <RelativeTime iso={ticket.createdAt} />
                 </span>
               </div>
-              <h1 className="text-pretty text-2xl font-semibold tracking-tight">
-                {ticket.title}
-              </h1>
+              {editingTitle ? (
+                <Textarea
+                  autoFocus
+                  rows={1}
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault()
+                      const t = titleDraft.trim()
+                      if (t) updateTicket(ticket.id, { title: t })
+                      setEditingTitle(false)
+                    }
+                    if (e.key === "Escape") setEditingTitle(false)
+                  }}
+                  onBlur={() => {
+                    const t = titleDraft.trim()
+                    if (t && t !== ticket.title) {
+                      updateTicket(ticket.id, { title: t })
+                    }
+                    setEditingTitle(false)
+                  }}
+                  className="min-h-0 max-w-[68ch] resize-none py-1 text-2xl font-semibold tracking-tight"
+                />
+              ) : (
+                <h1
+                  className="-mx-1 cursor-text text-pretty rounded px-1 text-2xl font-semibold tracking-tight hover:bg-muted/50"
+                  title="Click to edit"
+                  onClick={() => {
+                    setTitleDraft(ticket.title)
+                    setEditingTitle(true)
+                  }}
+                >
+                  {ticket.title}
+                </h1>
+              )}
             </div>
 
             {editingDesc ? (
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex max-w-[68ch] flex-col gap-2">
                 <RichTextEditor
                   value={descDraft}
                   onChange={setDescDraft}
                   minHeight={140}
                   autoFocus
                 />
-                <div className="flex gap-2">
+                <div className="flex justify-end gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -237,6 +291,22 @@ export default function TicketDetailPage({
                     updateTicket(ticket.id, { annotations: next })
                   }
                   editable
+                />
+              </section>
+            ) : null}
+
+            {ticket.recordingUrl ? (
+              <section className="flex flex-col gap-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Screen recording
+                </h2>
+                {/* biome-ignore lint/a11y/useMediaCaption: user-captured bug clip, no captions exist */}
+                <video
+                  src={ticket.recordingUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="w-full rounded-lg border border-input bg-black"
                 />
               </section>
             ) : null}
@@ -717,14 +787,25 @@ export default function TicketDetailPage({
                   variant="outline"
                   className="w-full"
                   onClick={handleSync}
+                  disabled={githubSyncOff}
                 >
                   <GithubIcon data-icon="inline-start" />
                   Sync to GitHub
                 </Button>
               )}
               <p className="text-xs text-muted-foreground">
-                Creates an issue under your own GitHub account. The board stays
-                the source of truth.
+                {githubSyncOff ? (
+                  "GitHub sync is disabled — an admin can turn it on in Settings → Integrations."
+                ) : (
+                  <>
+                    Creates an issue in{" "}
+                    <code className="text-xs">
+                      {project?.githubRepo ?? "…"}
+                    </code>{" "}
+                    under your own GitHub account. The board stays the source of
+                    truth.
+                  </>
+                )}
               </p>
             </div>
           </aside>

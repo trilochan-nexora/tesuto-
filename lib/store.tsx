@@ -16,6 +16,8 @@ import {
   type Comment,
   columnMeta,
   type Doc,
+  type IntegrationKey,
+  type Integrations,
   type IssueType,
   type Project,
   type Sprint,
@@ -38,6 +40,7 @@ export type NewTicketInput = {
   status?: string
   sourceUrl?: string
   screenshotUrl?: string
+  recordingUrl?: string
   annotations?: Ticket["annotations"]
   domSnapshot?: Ticket["domSnapshot"]
   context?: Ticket["context"]
@@ -52,10 +55,28 @@ type Bootstrap = {
   tickets: Ticket[]
   comments: Comment[]
   docs: Doc[]
+  integrations: Integrations
   me: User
 }
 
 const NO_SPRINTS: Sprint[] = []
+
+const DEFAULT_INTEGRATIONS: Integrations = {
+  slack: { enabled: true, available: true },
+  email: { enabled: true, available: true },
+  githubSync: { enabled: true, available: true },
+  githubProjects: { enabled: true, available: true },
+  clickup: { enabled: true, available: true },
+}
+
+/** Client-side toggle name → server setting key. */
+const SETTING_KEYS: Record<IntegrationKey, string> = {
+  slack: "integration.slack",
+  email: "integration.email",
+  githubSync: "integration.github_sync",
+  githubProjects: "integration.github_projects_import",
+  clickup: "integration.clickup_import",
+}
 
 type StoreState = {
   authState: AuthState
@@ -75,6 +96,10 @@ type StoreState = {
   isAdmin: boolean
   githubConnected: boolean
 
+  /** Integration toggles (Settings → Integrations, admin-editable). */
+  integrations: Integrations
+  updateIntegration: (key: IntegrationKey, enabled: boolean) => void
+
   getUser: (id?: string) => User | undefined
   getProject: (id?: string) => Project | undefined
   getSprint: (id?: string) => Sprint | undefined
@@ -86,6 +111,7 @@ type StoreState = {
 
   addProject: (input: { name: string; description: string }) => Promise<Project>
   deleteProject: (id: string) => void
+  updateProject: (id: string, patch: Partial<Project>) => void
   importProject: (input: {
     name: string
     description: string
@@ -98,13 +124,24 @@ type StoreState = {
       resolved: boolean
     }[]
   }) => Promise<Project>
+  importFromGithub: (input: {
+    projectId: string
+    name?: string
+    description?: string
+  }) => Promise<Project>
+  importFromClickUp: (input: {
+    token: string
+    listId: string
+    name: string
+    description?: string
+  }) => Promise<Project>
 
   addTicket: (input: NewTicketInput) => Promise<Ticket>
   updateTicket: (id: string, patch: Partial<Ticket>) => void
   moveTicket: (id: string, status: TicketStatus, order: number) => void
   setTicketSprint: (ticketId: string, sprintId?: string) => void
   addComment: (ticketId: string, body: string) => void
-  syncToGithub: (ticketId: string) => void
+  syncToGithub: (ticketId: string) => Promise<Ticket>
 
   addColumn: (
     label: string,
@@ -178,6 +215,15 @@ export const useStore = create<StoreState>((set, get) => {
       ),
     )
   }
+  /** Folds a freshly imported project (+ its tickets) into the store. */
+  const ingestImported = (created: Project & { tickets?: Ticket[] }) => {
+    const { tickets: imported, ...project } = created
+    set((s) => ({
+      projects: [...s.projects, project],
+      tickets: [...(imported ?? []), ...s.tickets],
+    }))
+    return project
+  }
   const isTerminal = (status: string) =>
     columnMeta(status, get().columns).terminal
   const refetchColumns = async () =>
@@ -195,6 +241,7 @@ export const useStore = create<StoreState>((set, get) => {
     currentUser: undefined as unknown as User,
     isAdmin: false,
     githubConnected: false,
+    integrations: DEFAULT_INTEGRATIONS,
     _meId: null,
     _lastLoad: 0,
 
@@ -208,6 +255,7 @@ export const useStore = create<StoreState>((set, get) => {
         tickets: b.tickets,
         comments: b.comments,
         docs: b.docs,
+        integrations: b.integrations ?? DEFAULT_INTEGRATIONS,
         authState: "authed" as const,
       }))
       set(withUsers(b.users))
@@ -224,6 +272,7 @@ export const useStore = create<StoreState>((set, get) => {
         currentUser: undefined as unknown as User,
         isAdmin: false,
         githubConnected: false,
+        integrations: DEFAULT_INTEGRATIONS,
         authState: "anon",
       }),
 
@@ -279,12 +328,25 @@ export const useStore = create<StoreState>((set, get) => {
           input,
         ),
       )
-      const { tickets: imported, ...project } = created
-      set((s) => ({
-        projects: [...s.projects, project],
-        tickets: [...(imported ?? []), ...s.tickets],
-      }))
-      return project
+      return ingestImported(created)
+    },
+    importFromGithub: async (input) => {
+      const created = stripNull(
+        await api.post<Project & { tickets: Ticket[] }>(
+          "/import/github",
+          input,
+        ),
+      )
+      return ingestImported(created)
+    },
+    importFromClickUp: async (input) => {
+      const created = stripNull(
+        await api.post<Project & { tickets: Ticket[] }>(
+          "/import/clickup",
+          input,
+        ),
+      )
+      return ingestImported(created)
     },
     deleteProject: (id) => {
       set((s) => ({
@@ -298,6 +360,30 @@ export const useStore = create<StoreState>((set, get) => {
         toast.error("Couldn't delete the project")
         console.error(e)
       })
+    },
+    updateProject: (id, patch) => {
+      const body: Record<string, unknown> = {}
+      for (const key of ["name", "description", "githubRepo"] as const) {
+        if (key in patch) body[key] = patch[key] ?? null
+      }
+      set((s) => ({
+        projects: s.projects.map((p) =>
+          p.id === id ? stripNull({ ...p, ...patch }) : p,
+        ),
+      }))
+      api
+        .patch<Project>(`/projects/${id}`, body)
+        .then((updated) =>
+          set((s) => ({
+            projects: s.projects.map((p) =>
+              p.id === id ? stripNull(updated) : p,
+            ),
+          })),
+        )
+        .catch((e) => {
+          toast.error("Project settings didn't save")
+          console.error(e)
+        })
     },
 
     addTicket: async (input) => {
@@ -379,12 +465,16 @@ export const useStore = create<StoreState>((set, get) => {
         })
     },
     syncToGithub: (ticketId) => {
-      api
+      return api
         .post<Ticket>(`/tickets/${ticketId}/sync-github`)
-        .then(upsertTicket)
+        .then((t) => {
+          upsertTicket(t)
+          return t
+        })
         .catch((e) => {
-          toast.error("GitHub sync failed")
+          toast.error(e instanceof Error ? e.message : "GitHub sync failed")
           console.error(e)
+          throw e
         })
     },
 
@@ -539,8 +629,39 @@ export const useStore = create<StoreState>((set, get) => {
           console.error(e)
         })
     },
+    /** Starts the GitHub OAuth flow; the server mints a signed state and the
+     * browser leaves for github.com. Completion lands on /settings with a
+     * `?github=` result the settings page toasts. */
+    updateIntegration: (key, enabled) => {
+      set((s) => ({
+        integrations: {
+          ...s.integrations,
+          [key]: { ...s.integrations[key], enabled },
+        },
+      }))
+      api
+        .patch(`/settings/integrations`, {
+          key: SETTING_KEYS[key],
+          enabled,
+        })
+        .catch((e) => {
+          toast.error("Couldn't update that integration")
+          console.error(e)
+          get().refresh()
+        })
+    },
     connectGithub: () => {
-      api.post<User>("/me/github").then(upsertUser).catch(console.error)
+      api
+        .get<{ url: string }>("/github/connect")
+        .then(({ url }) => {
+          window.location.href = url
+        })
+        .catch((e) => {
+          toast.error(
+            e instanceof Error ? e.message : "Couldn't start GitHub sign-in",
+          )
+          console.error(e)
+        })
     },
     disconnectGithub: () => {
       api.del<User>("/me/github").then(upsertUser).catch(console.error)

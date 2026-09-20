@@ -160,6 +160,8 @@ export type Ticket = {
   sourceUrl?: string
   domSnapshot?: DomSnapshot
   screenshotUrl?: string
+  /** Inline screen-recording data URL (webm/mp4), captured by the widget. */
+  recordingUrl?: string
   annotations?: Annotation[]
   context?: TicketContext
   githubIssueUrl?: string
@@ -181,8 +183,26 @@ export type Project = {
   color: string
   /** Publishable token the embedded widget presents to authenticate reports. */
   token: string
+  /** `owner/repo` that ticket sync opens issues in. Unset = sync disabled. */
+  githubRepo?: string
   createdAt: string
 }
+
+export type IntegrationToggle = {
+  enabled: boolean
+  /** Whether the server env makes this integration usable (webhook/API keys). */
+  available: boolean
+}
+
+export type Integrations = {
+  slack: IntegrationToggle
+  email: IntegrationToggle
+  githubSync: IntegrationToggle
+  githubProjects: IntegrationToggle
+  clickup: IntegrationToggle
+}
+
+export type IntegrationKey = keyof Integrations
 
 export type SprintStatus = "planned" | "active" | "completed"
 

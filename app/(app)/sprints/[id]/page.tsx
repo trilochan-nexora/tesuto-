@@ -177,7 +177,7 @@ function DocEditor({ doc }: { doc: Doc }) {
           <MarkdownField
             value={content}
             onChange={setContent}
-            placeholder="Write here. Link another doc with [[its title]]."
+            placeholder={"Type / for blocks · [[doc title]] links · # - > [] auto-format • markdown works too"}
             fill
           />
         ) : content.trim() ? (

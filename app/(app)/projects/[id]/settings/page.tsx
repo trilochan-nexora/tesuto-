@@ -3,13 +3,15 @@
 import { Globe, KeyRound, SquareKanban, TriangleAlert } from "lucide-react"
 import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
-import { use } from "react"
+import { use, useState } from "react"
 import { toast } from "sonner"
 import { AppHeader } from "@/components/app-header"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { CopyableCode, embedSnippet } from "@/components/embed-snippet"
+import { GithubIcon } from "@/components/icons"
 import { PageBack } from "@/components/page-back"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { useStore } from "@/lib/store"
 
@@ -19,13 +21,26 @@ export default function ProjectSettingsPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
-  const { getProject, tickets, projects, deleteProject } = useStore()
+  const { getProject, tickets, projects, deleteProject, updateProject } =
+    useStore()
   const router = useRouter()
   const project = getProject(id)
+  const [repo, setRepo] = useState(project?.githubRepo ?? "")
 
   if (!project) notFound()
+  const projectId = project.id
 
-  const count = tickets.filter((t) => t.projectId === project.id).length
+  const count = tickets.filter((t) => t.projectId === projectId).length
+
+  function saveRepo() {
+    const value = repo.trim()
+    updateProject(projectId, { githubRepo: value || undefined })
+    toast.success(
+      value
+        ? `Issues will open in ${value}`
+        : "GitHub repo cleared — sync is disabled for this project",
+    )
+  }
 
   return (
     <>
@@ -99,6 +114,40 @@ export default function ProjectSettingsPage({
             </Link>
             .
           </p>
+        </section>
+
+        <Separator />
+
+        <section className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <GithubIcon className="size-4" />
+              GitHub sync
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              The repo where tickets synced from this project open issues. Each
+              teammate syncs under their own GitHub account — connect yours in{" "}
+              <Link href="/settings" className="text-primary hover:underline">
+                Settings
+              </Link>
+              .
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              value={repo}
+              onChange={(e) => setRepo(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveRepo()
+              }}
+              placeholder="owner/repo"
+              className="max-w-64"
+              aria-label="GitHub repository"
+            />
+            <Button size="sm" onClick={saveRepo}>
+              Save
+            </Button>
+          </div>
         </section>
 
         <Separator />

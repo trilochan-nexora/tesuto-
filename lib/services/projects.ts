@@ -56,6 +56,42 @@ export async function deleteProject(id: string) {
   return { deleted: id }
 }
 
+export type ProjectPatch = {
+  name?: string
+  description?: string
+  /** `owner/repo` — where synced tickets open GitHub issues. `null` clears. */
+  githubRepo?: string | null
+}
+
+const REPO_PATTERN = /^[\w.-]+\/[\w.-]+$/
+
+export async function updateProject(id: string, patch: ProjectPatch) {
+  const project = await prisma.project.findUnique({ where: { id } })
+  if (!project) throw new HttpError("Project not found", 404)
+  const githubRepo =
+    patch.githubRepo === null
+      ? null
+      : patch.githubRepo !== undefined
+        ? patch.githubRepo.trim() || null
+        : undefined
+  if (githubRepo && !REPO_PATTERN.test(githubRepo)) {
+    throw new HttpError(
+      "GitHub repo must look like owner/repo (letters, digits, . _ -)",
+      422,
+    )
+  }
+  return prisma.project.update({
+    where: { id },
+    data: {
+      ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+      ...(patch.description !== undefined
+        ? { description: patch.description.trim() }
+        : {}),
+      ...(githubRepo !== undefined ? { githubRepo } : {}),
+    },
+  })
+}
+
 export type ImportedIssue = {
   title: string
   body?: string

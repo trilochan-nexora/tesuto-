@@ -56,6 +56,12 @@ assert(
   "bootstrap → ticket carries events + screenshotUrl key",
   Array.isArray(b.tickets[0].events) && "screenshotUrl" in b.tickets[0],
 )
+assert(
+  "bootstrap → integrations with enable/available",
+  b.integrations?.slack?.enabled !== undefined &&
+    b.integrations?.email?.enabled !== undefined &&
+    b.integrations?.githubSync?.enabled !== undefined,
+)
 
 const project = b.projects[0]
 
@@ -70,6 +76,20 @@ const t = r.data
 assert(
   "addTicket → key + created/assigned events",
   /-\d+$/.test(t?.key) && t.events.length === 2 && t.assignedAt,
+)
+
+r = await post("/tickets", {
+  title: "smoke ticket with clip",
+  projectId: project.id,
+  priority: "low",
+  type: "bug",
+  recordingUrl: "data:video/webm;base64,GkXf",
+})
+const clip = r.data
+assert(
+  "addTicket → recordingUrl round-trips",
+  typeof clip?.recordingUrl === "string" &&
+    clip.recordingUrl.startsWith("data:video"),
 )
 
 r = await patch(`/tickets/${t.id}`, { status: "done" })
@@ -89,13 +109,39 @@ assert("addComment → comment row", r.data?.body === "smoke comment")
 
 r = await post(`/tickets/${t.id}/sync-github`, {})
 assert(
-  "syncToGithub → url + synced event",
-  /github\.com/.test(r.data?.githubIssueUrl),
+  "syncToGithub → guarded without a connection",
+  r.status === 400 &&
+    /Connect your GitHub account/.test(r.error?.message ?? ""),
 )
+
+// GitHub OAuth connect — requires GITHUB_CLIENT_ID + APP_SECRET in env.
+const ghConfigured = Boolean(
+  process.env.GITHUB_CLIENT_ID && process.env.APP_SECRET,
+)
+if (ghConfigured) {
+  r = await call("/github/connect")
+  assert(
+    "connectGithub → GitHub authorize url",
+    /github\.com\/login\/oauth\/authorize/.test(r.data?.url ?? ""),
+  )
+} else {
+  r = await call("/github/connect")
+  assert(
+    "connectGithub → not configured (no GITHUB_CLIENT_ID/APP_SECRET)",
+    r.status === 500 && /not configured/.test(r.error?.message ?? ""),
+  )
+}
 
 r = await post("/projects", { name: "Smoke Proj", description: "x" })
 const np = r.data
 assert("addProject → key + token", np?.key && np.token?.startsWith("tsto_pk_"))
+
+r = await patch(`/projects/${np.id}`, { githubRepo: "acme/smoke" })
+assert("updateProject → githubRepo saved", r.data?.githubRepo === "acme/smoke")
+r = await patch(`/projects/${np.id}`, { githubRepo: "not a repo" })
+assert("updateProject → invalid repo 422", r.status === 422)
+r = await patch(`/projects/${np.id}`, { githubRepo: null })
+assert("updateProject → githubRepo cleared", r.data?.githubRepo == null)
 
 r = await post("/columns", { label: "Smoke Col" })
 const nc = r.data
@@ -112,13 +158,49 @@ r = await patch("/me", { bio: "smoke" })
 assert("updateProfile → saved", r.data?.bio === "smoke")
 await patch("/me", { bio: null })
 
-r = await post("/me/github", {})
-assert("connectGithub", r.data?.githubConnected === true)
 r = await del("/me/github")
 assert("disconnectGithub", r.data?.githubConnected === false)
 
-r = await post("/tickets/bulk", { action: "delete", ids: [t.id] })
-assert("deleteTickets (bulk) → cleanup", r.data?.deleted === 1)
+r = await patch("/settings/integrations", {
+  key: "integration.clickup_import",
+  enabled: false,
+})
+assert(
+  "toggle integration off",
+  r.data?.key === "integration.clickup_import" && r.data?.enabled === false,
+)
+r = await post("/import/clickup/teams", { token: "pk_1234567890" })
+assert(
+  "import → blocked while disabled",
+  r.status === 403 && /disabled/.test(r.error?.message ?? ""),
+)
+r = await patch("/settings/integrations", {
+  key: "integration.clickup_import",
+  enabled: true,
+})
+assert(
+  "toggle integration back on",
+  r.data?.key === "integration.clickup_import" && r.data?.enabled === true,
+)
+r = await post("/import/clickup/teams", { token: "pk_1234567890" })
+assert(
+  "import → bad ClickUp token rejected",
+  r.status === 502 && /rejected/i.test(r.error?.message ?? ""),
+)
+r = await call("/import/github/projects")
+assert(
+  "github import → requires a connection",
+  r.status === 400 &&
+    /Connect your GitHub account/.test(r.error?.message ?? ""),
+)
+
+assert(
+  "users never expose githubToken",
+  b.users.every((u) => !("githubToken" in u)),
+)
+
+r = await post("/tickets/bulk", { action: "delete", ids: [t.id, clip.id] })
+assert("deleteTickets (bulk) → cleanup", r.data?.deleted === 2)
 
 // widget API — user bearer token + X-Tesuto-Project header
 const wh = {

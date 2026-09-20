@@ -1,6 +1,12 @@
 import { z } from "zod"
 import { widgetRoute } from "@/lib/api"
-import { zContext, zDomSnapshot, zPriority, zScreenshot } from "@/lib/schemas"
+import {
+  zContext,
+  zDomSnapshot,
+  zPriority,
+  zRecording,
+  zScreenshot,
+} from "@/lib/schemas"
 import { widgetCreateIssue, widgetIssues } from "@/lib/services/widget"
 
 const CreateSchema = z.object({
@@ -9,6 +15,7 @@ const CreateSchema = z.object({
   priority: zPriority.default("medium"),
   sourceUrl: z.string().optional(),
   screenshot: zScreenshot.optional(),
+  recording: zRecording.optional(),
   domSnapshot: zDomSnapshot.optional(),
   context: zContext.optional(),
 })

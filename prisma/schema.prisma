@@ -16,6 +16,8 @@ model User {
   email           String   @unique
   color           String
   githubLogin     String?  @map("github_login")
+  /// OAuth access token, encrypted at rest with APP_SECRET. Never select into API payloads.
+  githubToken     String?  @map("github_token")
   role            String   @default("member") // admin | member
   title           String?
   bio             String?
@@ -29,6 +31,8 @@ model User {
   assignedTickets Ticket[]  @relation("TicketAssignee")
   comments        Comment[]
   docs            Doc[]
+
+  widgetLinks     WidgetLink[]
 
   @@map("users")
 }
@@ -52,6 +56,8 @@ model Project {
   description String   @default("")
   color       String
   token       String   @unique
+  /// `owner/repo` that ticket sync opens issues in. Empty = sync disabled for this project.
+  githubRepo  String?  @map("github_repo")
   createdAt   DateTime @default(now()) @map("created_at")
 
   tickets Ticket[]
@@ -89,6 +95,7 @@ model Ticket {
   sourceUrl      String?   @map("source_url")
   domSnapshot    Json?     @map("dom_snapshot")
   screenshotUrl  String?   @map("screenshot_url")
+  recordingUrl   String?   @map("recording_url")
   annotations    Json?
   context        Json?
   githubIssueUrl String?   @map("github_issue_url")
@@ -123,7 +130,34 @@ model Comment {
   @@map("comments")
 }
 
-model Doc {
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+/**
+ * Links a host-app identity (verified via signed assertion) to a Tesuto
+ * user. `sam@hearth` proves who she is with the assertion, then verifies
+ * once out-of-band (email code) that she owns `ram@tesuto` — from then on
+ * her widget sessions act as ram. Unverified rows hold a pending code.
+ */
+model WidgetLink {
+  hostEmail     String    @id @map("host_email")
+  userId        String    @map("user_id")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash      String?   @map("code_hash")
+  codeExpiresAt DateTime? @map("code_expires_at")
+  attempts      Int       @default(0)
+  lastSentAt    DateTime? @map("last_sent_at")
+  verifiedAt    DateTime? @map("verified_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("widget_links")
+}model Doc {
   id        String   @id @default(cuid())
   projectId String?  @map("project_id")
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)

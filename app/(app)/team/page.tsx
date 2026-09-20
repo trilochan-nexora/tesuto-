@@ -38,9 +38,19 @@ export default function TeamPage() {
     return map
   }, [tickets])
 
-  const admins = users.filter((u) => u.role === "admin" && u.active).length
+  const activeAdmins = users.filter((u) => u.role === "admin" && u.active)
+  const admins = activeAdmins.length
 
   if (!isAdmin) {
+    const others = activeAdmins
+      .filter((u) => u.id !== currentUser.id)
+      .map((u) => u.name)
+    const ask =
+      others.length === 0
+        ? "an admin"
+        : others.length === 1
+          ? others[0]
+          : `${others.slice(0, -1).join(", ")} or ${others[others.length - 1]}`
     return (
       <>
         <AppHeader title="Users" description="Team & access management" />
@@ -51,8 +61,7 @@ export default function TeamPage() {
             </EmptyMedia>
             <EmptyTitle>Admins only</EmptyTitle>
             <EmptyDescription>
-              User management is restricted to admins. Ask {currentUser.name} or
-              another admin for access.
+              User management is restricted to admins. Ask {ask} for access.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

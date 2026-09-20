@@ -3,6 +3,9 @@ import { widgetRoute } from "@/lib/api"
 import { widgetSignIn, widgetSignOut } from "@/lib/services/widget"
 
 const SignInSchema = z.object({
+  // Verified mode: Hearth proves its user with a signed assertion
+  // (TESUTO_WIDGET_SECRET). Legacy dev mode: plain name/email claim.
+  assertion: z.string().optional(),
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
 })

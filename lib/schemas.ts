@@ -42,3 +42,10 @@ export const zContext = z.object({
 
 /** Inline base64 data URL — cap so a runaway screenshot can't wedge Postgres. */
 export const zScreenshot = z.string().max(8_000_000)
+
+/**
+ * Inline base64 screen recording (webm/mp4 data URL). ~10 MB of video is
+ * ~13.4 MB base64 — cap the string with headroom; the client enforces the
+ * byte cap before upload.
+ */
+export const zRecording = z.string().max(15_000_000)

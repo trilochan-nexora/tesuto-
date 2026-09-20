@@ -1,9 +1,10 @@
 "use client"
 
-import { ArrowRight, Plug, Plus, SquareKanban } from "lucide-react"
+import { ArrowRight, Download, Plug, Plus, SquareKanban } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 import { AppHeader } from "@/components/app-header"
+import { ImportDialog } from "@/components/import-dialog"
 import { NewProjectDialog } from "@/components/new-project-dialog"
 import { Pagination, usePagination } from "@/components/pagination"
 import { Button } from "@/components/ui/button"
@@ -14,9 +15,12 @@ import { useStore } from "@/lib/store"
 const PER_PAGE = 12
 
 export default function ProjectsPage() {
-  const { projects, tickets } = useStore()
+  const { projects, tickets, integrations } = useStore()
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
   const pg = usePagination(projects, PER_PAGE)
+  const importOff =
+    !integrations.githubProjects.enabled && !integrations.clickup.enabled
 
   return (
     <>
@@ -34,6 +38,16 @@ export default function ProjectsPage() {
               <SquareKanban data-icon="inline-start" />
               All tickets
             </Button>
+            {!importOff ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setImporting(true)}
+              >
+                <Download data-icon="inline-start" />
+                Import
+              </Button>
+            ) : null}
             <Button size="sm" onClick={() => setAdding(true)}>
               <Plus data-icon="inline-start" />
               Add project
@@ -117,6 +131,7 @@ export default function ProjectsPage() {
       </div>
 
       <NewProjectDialog open={adding} onOpenChange={setAdding} />
+      <ImportDialog open={importing} onOpenChange={setImporting} />
     </>
   )
 }

@@ -5,6 +5,7 @@ import {
   zContext,
   zDomSnapshot,
   zPriority,
+  zRecording,
   zScreenshot,
   zType,
 } from "@/lib/schemas"
@@ -28,6 +29,7 @@ const NewTicketSchema = z.object({
   status: z.string().optional(),
   sourceUrl: z.string().optional(),
   screenshotUrl: zScreenshot.optional(),
+  recordingUrl: zRecording.optional(),
   annotations: z.array(zAnnotation).optional(),
   domSnapshot: zDomSnapshot.optional(),
   context: zContext.optional(),

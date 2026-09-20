@@ -1,12 +1,15 @@
+import { Check } from "lucide-react"
 import Link from "next/link"
 import { Fragment } from "react"
+import { cn } from "@/lib/utils"
 
 type WikiResolver = (title: string) => string | null
 
 /**
- * A deliberately small Markdown renderer — headings, paragraphs, unordered
- * lists, fenced/inline code, **bold**, and `[[wiki links]]`. Not a
- * general-purpose parser; docs are authored by the team, not untrusted input.
+ * A deliberately small Markdown renderer — headings, paragraphs, lists with
+ * Notion-style task checkboxes, dividers, fenced/inline code, **bold**,
+ * ~~strikethrough~~, and `[[wiki links]]`. Not a general-purpose parser;
+ * docs are authored by the team, not untrusted input.
  */
 export function MarkdownLite({
   content,
@@ -22,6 +25,9 @@ export function MarkdownLite({
       {blocks.map((block, i) => {
         const key = `${i}-${block.slice(0, 12)}`
 
+        if (block.trim() === "---") {
+          return <hr key={key} className="border-border" />
+        }
         if (block.startsWith("```")) {
           const code = block.replace(/^```[a-z]*\n?/, "").replace(/```$/, "")
           return (
@@ -68,25 +74,54 @@ export function MarkdownLite({
           )
         }
 
-        if (/^[-*] |^\d+[.)] /m.test(block)) {
+        if (/^[-*] |^- \[[ x]\] |^\d+[.)] /m.test(block)) {
           const ordered = /^\d+[.)] /.test(block)
           const items = block
             .split("\n")
-            .filter((l) => /^([-*]|\d+[.)]) /.test(l))
+            .filter((l) => /^([-*] |[-*] \[[ x]\] |\d+[.)] )/.test(l))
           const Tag = ordered ? "ol" : "ul"
           return (
             <Tag
               key={key}
-              className={`flex flex-col gap-1.5 pl-5 ${ordered ? "list-decimal" : "list-disc"}`}
+              className={cn(
+                "flex flex-col gap-1.5 pl-1",
+                ordered ? "list-decimal pl-5" : "list-none",
+              )}
             >
-              {items.map((item, j) => (
-                <li key={j}>
-                  {inline(
-                    item.replace(/^([-*]|\d+[.)]) /, ""),
-                    resolveWikiLink,
-                  )}
-                </li>
-              ))}
+              {items.map((item, j) => {
+                const task = item.match(/^[-*] \[([ x])\] (.*)$/)
+                const plain = item.replace(
+                  /^([-*] |[-*] \[[ x]\] |\d+[.)] )/,
+                  "",
+                )
+                if (task) {
+                  const checked = task[1] === "x"
+                  return (
+                    <li key={j} className="flex items-start gap-2">
+                      <span
+                        className={cn(
+                          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border",
+                          checked
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background",
+                        )}
+                      >
+                        {checked ? <Check className="size-3" /> : null}
+                      </span>
+                      <span
+                        className={cn(
+                          "min-w-0",
+                          checked &&
+                            "text-muted-foreground line-through decoration-muted-foreground/60",
+                        )}
+                      >
+                        {inline(task[2], resolveWikiLink)}
+                      </span>
+                    </li>
+                  )
+                }
+                return <li key={j}>{inline(plain, resolveWikiLink)}</li>
+              })}
             </Tag>
           )
         }
@@ -99,7 +134,7 @@ export function MarkdownLite({
 
 function inline(text: string, resolveWikiLink?: WikiResolver) {
   return text
-    .split(/(\[\[[^\]]+\]\]|`[^`]+`|\*\*[^*]+\*\*)/g)
+    .split(/(\[\[[^\]]+\]\]|`[^`]+`|\*\*[^*]+\*\*|~~[^~]+~~)/g)
     .map((part, i) => {
       if (part.startsWith("[[") && part.endsWith("]]")) {
         const title = part.slice(2, -2).trim()
@@ -141,6 +176,9 @@ function inline(text: string, resolveWikiLink?: WikiResolver) {
             {part.slice(2, -2)}
           </strong>
         )
+      }
+      if (part.startsWith("~~") && part.endsWith("~~")) {
+        return <s key={i}>{part.slice(2, -2)}</s>
       }
       return <Fragment key={i}>{part}</Fragment>
     })

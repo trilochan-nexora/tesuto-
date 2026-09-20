@@ -1,5 +1,15 @@
 import type { SessionUser } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import {
+  emailFrom,
+  githubClientId,
+  githubClientSecret,
+  resendApiKey,
+  slackWebhookUrl,
+} from "@/lib/env"
+import type { Integrations } from "@/lib/types"
+import { getSetting } from "./settings"
+import { publicUser } from "./users"
 
 /**
  * Everything the client store needs on load, in one round trip. Screenshots
@@ -7,26 +17,53 @@ import { prisma } from "@/lib/db"
  * URLs ever get heavy enough to matter, move them to blob storage.
  */
 export async function loadBootstrap(me: SessionUser) {
-  const [users, projects, columns, tickets, comments, docs] = await Promise.all(
-    [
+  const [users, projects, columns, tickets, comments, docs, integrations] =
+    await Promise.all([
       prisma.user.findMany({ orderBy: { name: "asc" } }),
       prisma.project.findMany({ orderBy: { createdAt: "asc" } }),
       prisma.column.findMany({ orderBy: { order: "asc" } }),
       prisma.ticket.findMany({ orderBy: { order: "asc" } }),
       prisma.comment.findMany({ orderBy: { createdAt: "asc" } }),
       prisma.doc.findMany({ orderBy: { createdAt: "desc" } }),
-    ],
-  )
+      loadIntegrations(),
+    ])
 
   return {
-    users,
+    users: users.map(publicUser),
     projects,
     columns,
     tickets,
     comments,
     docs,
-    me,
+    integrations,
+    me: publicUser(me),
     isAdmin: me.role === "admin",
     githubConnected: me.githubConnected,
+  }
+}
+
+/** Toggle state + whether the server env can actually deliver it. */
+async function loadIntegrations(): Promise<Integrations> {
+  const [slack, email, githubSync, githubProjects, clickup] = await Promise.all(
+    [
+      getSetting("integration.slack"),
+      getSetting("integration.email"),
+      getSetting("integration.github_sync"),
+      getSetting("integration.github_projects_import"),
+      getSetting("integration.clickup_import"),
+    ],
+  )
+  return {
+    slack: { enabled: slack, available: Boolean(slackWebhookUrl()) },
+    email: {
+      enabled: email,
+      available: Boolean(resendApiKey() && emailFrom()),
+    },
+    githubSync: { enabled: githubSync, available: true },
+    githubProjects: {
+      enabled: githubProjects,
+      available: Boolean(githubClientId() && githubClientSecret()),
+    },
+    clickup: { enabled: clickup, available: true },
   }
 }

@@ -1,10 +1,11 @@
 import { handler } from "@/lib/api"
-import { setGithubConnected } from "@/lib/services/users"
+import { publicUser, unlinkGithubAccount } from "@/lib/services/users"
 
-export const POST = handler({
-  run: (_input, { user }) => setGithubConnected(user.id, true),
-})
-
+/**
+ * Disconnecting clears the encrypted token, the known login, and the flag —
+ * syncs fail with "connect your account" until the user re-links.
+ */
 export const DELETE = handler({
-  run: (_input, { user }) => setGithubConnected(user.id, false),
+  run: async (_input, { user }) =>
+    publicUser(await unlinkGithubAccount(user.id)),
 })
