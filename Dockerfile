@@ -1,21 +1,26 @@
-# Pinned to a floating minor tag (not the exact 1.3.14 from package.json)
-# because 1.3.14 segfaults in bun's worker-thread cleanup after `next build`
-# finishes inside Docker's buildx sandbox — a bun engine bug, not app code.
-FROM oven/bun:1.2 AS base
-WORKDIR /app
+# Bun only installs dependencies here (it understands bun.lock). The actual
+# `next build` / `next start` run under real Node.js below — Next 16's
+# Turbopack build spawns worker_threads with options (stdout/stderr/
+# resourceLimits) Bun doesn't fully implement, which segfaults Bun on exit
+# after the build itself has already finished. bun-installed node_modules
+# work fine when run by plain Node.
 
-FROM base AS deps
+FROM oven/bun:1.3.14 AS deps
+WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-FROM deps AS builder
+FROM node:22-slim AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# `prisma generate` (part of `bun run build`) only needs DATABASE_URL to be
+# `prisma generate` (part of `npm run build`) only needs DATABASE_URL to be
 # resolvable, not a live connection — the real one is supplied at runtime.
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
-RUN bun run build
+RUN npm run build
 
-FROM base AS runner
+FROM node:22-slim AS runner
+WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -33,4 +38,4 @@ ENV PORT=3005
 # Dokploy project/network) before starting, so the DB is never exposed
 # publicly just to run migrations.
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["bun", "run", "start"]
+CMD ["npm", "run", "start"]

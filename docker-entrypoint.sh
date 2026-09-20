@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
 
-bunx prisma migrate deploy
+npx prisma migrate deploy
 
 exec "$@"
