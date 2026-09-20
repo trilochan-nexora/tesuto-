@@ -1,4 +1,7 @@
-FROM oven/bun:1.3.14 AS base
+# Pinned to a floating minor tag (not the exact 1.3.14 from package.json)
+# because 1.3.14 segfaults in bun's worker-thread cleanup after `next build`
+# finishes inside Docker's buildx sandbox — a bun engine bug, not app code.
+FROM oven/bun:1.2 AS base
 WORKDIR /app
 
 FROM base AS deps
