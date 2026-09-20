@@ -70,7 +70,12 @@ export function AppSidebar() {
             <NewTicketDialog
               trigger={
                 <SidebarMenuButton
-                  title="New ticket"
+                  title={
+                    projects.length === 0
+                      ? "Create a project first"
+                      : "New ticket"
+                  }
+                  disabled={projects.length === 0}
                   className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary active:text-primary-foreground"
                 >
                   <Plus />

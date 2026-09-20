@@ -51,8 +51,13 @@ export function NewTicketDialog({
 
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
-  const [projectId, setProjectId] = useState(defaultProjectId ?? projects[0].id)
-  const [status, setStatus] = useState(defaultStatus ?? columns[0].id)
+  // projects/columns can be empty in a brand-new workspace — fall back to ""
+  // rather than crash on projects[0].id; submit() below refuses to proceed
+  // without a real selection.
+  const [projectId, setProjectId] = useState(
+    defaultProjectId ?? projects[0]?.id ?? "",
+  )
+  const [status, setStatus] = useState(defaultStatus ?? columns[0]?.id ?? "")
   const [type, setType] = useState<IssueType>("bug")
   const [priority, setPriority] = useState<TicketPriority>("medium")
   const [assigneeId, setAssigneeId] = useState("unassigned")
@@ -67,12 +72,16 @@ export function NewTicketDialog({
     setType("bug")
     setPriority("medium")
     setAssigneeId("unassigned")
-    setStatus(defaultStatus ?? columns[0].id)
+    setStatus(defaultStatus ?? columns[0]?.id ?? "")
   }
 
   async function submit() {
     if (!title.trim()) {
       toast.error("A title is required.")
+      return
+    }
+    if (!projectId || !status) {
+      toast.error("Create a project first.")
       return
     }
     let ticket: Awaited<ReturnType<typeof addTicket>>
