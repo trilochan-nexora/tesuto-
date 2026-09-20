@@ -1,36 +1,33 @@
-# Bun only installs dependencies here (it understands bun.lock). The actual
-# `next build` / `next start` run under real Node.js below — Next 16's
-# Turbopack build spawns worker_threads with options (stdout/stderr/
-# resourceLimits) Bun doesn't fully implement, which segfaults Bun on exit
-# after the build itself has already finished. bun-installed node_modules
-# work fine when run by plain Node.
-
-FROM oven/bun:1.3.14 AS deps
+FROM oven/bun:1.3.14-slim AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-FROM node:22-slim AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+FROM deps AS builder
 COPY . .
-# `prisma generate` (part of `npm run build`) only needs DATABASE_URL to be
+# `prisma generate` (part of the build) only needs DATABASE_URL to be
 # resolvable, not a live connection — the real one is supplied at runtime.
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
-RUN npm run build
+# --webpack: Next 16 defaults `next build` to Turbopack, whose worker pool
+# passes worker_threads options (stdout/stderr/resourceLimits) Bun doesn't
+# implement — that corrupts page-data collection and segfaults Bun on exit.
+# Webpack's build path doesn't hit this. (`next start` at runtime is
+# unaffected either way — it doesn't spawn build workers.)
+RUN bunx prisma generate && bunx next build --webpack
 
-FROM node:22-slim AS runner
+FROM oven/bun:1.3.14-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/next.config.mjs ./next.config.mjs
-COPY --from=builder /app/prisma ./prisma
-COPY docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --from=deps --chown=bun:bun /app/node_modules ./node_modules
+COPY --from=builder --chown=bun:bun /app/.next ./.next
+COPY --from=builder --chown=bun:bun /app/public ./public
+COPY --from=builder --chown=bun:bun /app/package.json ./package.json
+COPY --from=builder --chown=bun:bun /app/next.config.mjs ./next.config.mjs
+COPY --from=builder --chown=bun:bun /app/prisma ./prisma
+COPY --chown=bun:bun docker-entrypoint.sh ./docker-entrypoint.sh
 
+USER bun
 EXPOSE 3005
 ENV PORT=3005
 
@@ -38,4 +35,4 @@ ENV PORT=3005
 # Dokploy project/network) before starting, so the DB is never exposed
 # publicly just to run migrations.
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["npm", "run", "start"]
+CMD ["bun", "run", "start"]
