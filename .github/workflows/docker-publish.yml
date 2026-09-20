@@ -10,7 +10,9 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # github.repository is "trilochan-nexora/tesuto-" — the trailing hyphen
+  # from the repo name is not a valid Docker image reference character.
+  IMAGE_NAME: ${{ github.repository_owner }}/tesuto
 
 jobs:
   build-and-push:
