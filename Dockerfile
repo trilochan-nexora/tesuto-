@@ -7,6 +7,9 @@ RUN bun install --frozen-lockfile
 
 FROM deps AS builder
 COPY . .
+# `prisma generate` (part of `bun run build`) only needs DATABASE_URL to be
+# resolvable, not a live connection — the real one is supplied at runtime.
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
 RUN bun run build
 
 FROM base AS runner
