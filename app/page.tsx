@@ -152,9 +152,9 @@ export default function LandingPage() {
             Open Tesuto
             <ArrowRight data-icon="inline-end" />
           </Button>
-          <Button size="lg" variant="ghost" render={<Link href="/sprints" />}>
+          <Button size="lg" variant="ghost" render={<Link href="/widget" />}>
             <MessageSquare data-icon="inline-start" />
-            Read the docs
+            Try the widget
           </Button>
         </div>
       </section>

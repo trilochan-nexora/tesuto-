@@ -248,6 +248,12 @@ export const useStore = create<StoreState>((set, get) => {
     _load: async () => {
       set({ _lastLoad: Date.now() })
       const b = stripNull(await api.get<Bootstrap>("/bootstrap"))
+      // One atomic set(): authState flips to "authed" in the same update as
+      // currentUser. Splitting this into two set() calls (as before) let
+      // subscribers — e.g. <SignInGate> — observe authState: "authed" with
+      // currentUser still undefined for one render, crashing anything that
+      // reads currentUser.id without optional chaining.
+      const me = b.users.find((u) => u.id === b.me.id)
       set(() => ({
         _meId: b.me.id,
         projects: b.projects,
@@ -257,8 +263,11 @@ export const useStore = create<StoreState>((set, get) => {
         docs: b.docs,
         integrations: b.integrations ?? DEFAULT_INTEGRATIONS,
         authState: "authed" as const,
+        users: b.users,
+        currentUser: me as User,
+        isAdmin: me?.role === "admin",
+        githubConnected: me?.githubConnected ?? false,
       }))
-      set(withUsers(b.users))
     },
     _reset: () =>
       set({

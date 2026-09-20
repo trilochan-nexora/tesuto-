@@ -25,12 +25,6 @@ export function SiteHeader() {
           >
             Widget
           </Link>
-          <Link
-            href="/sprints"
-            className="transition-colors hover:text-foreground"
-          >
-            Docs
-          </Link>
         </nav>
         <Button size="sm" render={<Link href="/inbox" />}>
           Open Tesuto
@@ -47,7 +41,10 @@ export function SiteFooter() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-6 py-10 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Flame className="size-4 text-primary" />
-          <span>Tesuto — internal bug &amp; ticket tracking</span>
+          <span>
+            &copy; {new Date().getFullYear()} Tesuto — internal bug &amp;
+            ticket tracking
+          </span>
         </div>
         <span>Report the bug from exactly where you see it.</span>
       </div>

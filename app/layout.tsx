@@ -7,10 +7,33 @@ import "./globals.css"
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
+const title = "Tesuto — Bug reporting & ticket tracking"
+const description =
+  "Point-at-the-UI bug reporting, a fast kanban board, per-ticket comments, and per-user GitHub sync. The internal tracker your team actually enjoys."
+
 export const metadata: Metadata = {
-  title: "Tesuto — Bug reporting & ticket tracking",
-  description:
-    "Point-at-the-UI bug reporting, a fast kanban board, per-ticket comments, and per-user GitHub sync. The internal tracker your team actually enjoys.",
+  metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3005"),
+  title,
+  description,
+  icons: {
+    icon: [
+      { url: "/icon-light-32x32.png", media: "(prefers-color-scheme: light)" },
+      { url: "/icon-dark-32x32.png", media: "(prefers-color-scheme: dark)" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-icon.png",
+  },
+  openGraph: {
+    title,
+    description,
+    siteName: "Tesuto",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+  },
 }
 
 export const viewport: Viewport = {
