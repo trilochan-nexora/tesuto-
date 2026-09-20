@@ -11,8 +11,18 @@ const title = "Tesuto — Bug reporting & ticket tracking"
 const description =
   "Point-at-the-UI bug reporting, a fast kanban board, per-ticket comments, and per-user GitHub sync. The internal tracker your team actually enjoys."
 
+// APP_URL is admin-configured, not hardcoded — a malformed value must not
+// throw at module load and take the whole app down with it.
+function metadataBase(): URL {
+  try {
+    return new URL(process.env.APP_URL ?? "http://localhost:3005")
+  } catch {
+    return new URL("http://localhost:3005")
+  }
+}
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3005"),
+  metadataBase: metadataBase(),
   title,
   description,
   icons: {
