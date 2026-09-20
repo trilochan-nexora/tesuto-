@@ -25,6 +25,7 @@ COPY --from=builder --chown=bun:bun /app/public ./public
 COPY --from=builder --chown=bun:bun /app/package.json ./package.json
 COPY --from=builder --chown=bun:bun /app/next.config.mjs ./next.config.mjs
 COPY --from=builder --chown=bun:bun /app/prisma ./prisma
+COPY --from=builder --chown=bun:bun /app/prisma.config.ts ./prisma.config.ts
 COPY --chown=bun:bun docker-entrypoint.sh ./docker-entrypoint.sh
 
 USER bun
