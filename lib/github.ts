@@ -11,8 +11,14 @@ import { githubClientId, githubClientSecret } from "@/lib/env"
 const API = "https://api.github.com"
 const OAUTH = "https://github.com/login/oauth"
 
-/** `repo` for issue sync, `read:project` for GitHub Projects imports. */
-export const GITHUB_SCOPES = "repo read:project"
+/**
+ * `repo` for issue sync, `read:project` for GitHub Projects imports,
+ * `read:org` because listGithubProjects()'s GraphQL query reads
+ * `organizations.nodes.login` — GitHub requires that scope for the `login`
+ * field on Organization even though `read:project` already covers the
+ * projectsV2 data itself.
+ */
+export const GITHUB_SCOPES = "repo read:project read:org"
 
 /** Callback route path on this app. */
 export const GITHUB_CALLBACK_PATH = "/api/github/callback"
