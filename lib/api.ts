@@ -46,7 +46,14 @@ function mapError(err: unknown): Response {
   if (err instanceof ZodError) {
     return fail("Validation failed", 422, { issues: err.issues })
   }
-  if (err instanceof HttpError) return fail(err.message, err.status)
+  if (err instanceof HttpError) {
+    // 5xx here means an upstream we depend on (GitHub, ClickUp) failed —
+    // worth a server log, unlike a plain 4xx client mistake. Cloudflare also
+    // swaps the response body for its own error page on a 5xx status, so
+    // this is often the only place the real message survives.
+    if (err.status >= 500) console.error("[api]", err.status, err.message)
+    return fail(err.message, err.status)
+  }
   console.error("[api]", err)
   return fail("Internal error", 500)
 }
