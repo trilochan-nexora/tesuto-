@@ -574,6 +574,7 @@
     issueFrom: "page", // which tab openIssue() was called from
     thread: [],
     threadTimer: null,
+    unlocked: false, // fab stays hidden until the corner click-gesture fires (see hotspot)
   }
 
   const wrap = document.createElement("div")
@@ -589,6 +590,28 @@
     else collapse()
   })
   wrap.appendChild(fab)
+
+  // Hidden reveal gesture: the fab stays invisible until this corner region is
+  // clicked 5 times within CLICK_WINDOW_MS. Same behavior in dev and prod — no
+  // env flag needed, the gesture itself is the restriction.
+  const CLICKS_NEEDED = 5
+  const CLICK_WINDOW_MS = 4000
+  let unlockClicks = []
+  const hotspot = document.createElement("div")
+  hotspot.style.cssText =
+    "position:fixed;bottom:0;right:0;width:90px;height:90px;pointer-events:auto;background:transparent"
+  hotspot.addEventListener("click", () => {
+    if (state.unlocked) return
+    const now = Date.now()
+    unlockClicks = unlockClicks.filter((t) => now - t < CLICK_WINDOW_MS)
+    unlockClicks.push(now)
+    if (unlockClicks.length >= CLICKS_NEEDED) {
+      unlockClicks = []
+      state.unlocked = true
+      go("actions")
+    }
+  })
+  wrap.insertBefore(hotspot, fab)
 
   const panel = document.createElement("div")
   panel.className = "panel"
@@ -638,7 +661,7 @@
     }
     const open = state.view !== "collapsed"
     panel.style.display = open ? "flex" : "none"
-    fab.style.display = open ? "none" : "grid"
+    fab.style.display = open ? "none" : state.unlocked ? "grid" : "none"
     fab.innerHTML = I.chevU
     if (!open) return
 
