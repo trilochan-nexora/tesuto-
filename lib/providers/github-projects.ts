@@ -22,7 +22,14 @@ export type GithubItem = {
   title: string
   body: string
   resolved: boolean
+  /** This item's value in the board's "Status" single-select field, if any. */
+  status?: string
 }
+
+export type GithubColumn = { label: string; terminal: boolean }
+
+/** Status option names commonly used as a board's terminal column. */
+const TERMINAL_STATUS_NAMES = /^(done|closed|complete|completed|merged|resolved)$/i
 
 type GqlResult<T> = {
   data?: T
@@ -117,16 +124,20 @@ type ProjectNode = {
   items?: { totalCount: number }
 }
 
-/** Items of one board (first 100, draft issues included). */
+/** Items of one board (first 100, draft issues included), plus the board's
+ * own "Status" column set so the import can mirror it instead of collapsing
+ * everything into Tesuto's generic defaults. */
 export async function listGithubItems(
   token: string,
   projectId: string,
-): Promise<{ title: string; items: GithubItem[] }> {
+): Promise<{ title: string; columns: GithubColumn[]; items: GithubItem[] }> {
   const data = await gql<{
     node: {
       title: string
+      fields: { nodes: { name?: string; options?: { name: string }[] }[] }
       items: {
         nodes: {
+          fieldValueByName: { name?: string } | null
           content: {
             title?: string
             body?: string
@@ -141,8 +152,16 @@ export async function listGithubItems(
       node(id: $id) {
         ... on ProjectV2 {
           title
+          fields(first: 50) {
+            nodes {
+              ... on ProjectV2SingleSelectField { name options { name } }
+            }
+          }
           items(first: 100, orderBy: { field: POSITION, direction: ASC }) {
             nodes {
+              fieldValueByName(name: "Status") {
+                ... on ProjectV2ItemFieldSingleSelectValue { name }
+              }
               content {
                 ... on Issue { title body state }
                 ... on PullRequest { title body state }
@@ -157,6 +176,19 @@ export async function listGithubItems(
   )
   if (!data.node) throw new HttpError("GitHub project not found", 404)
 
+  const statusField = data.node.fields.nodes.find(
+    (f) => f.name?.toLowerCase() === "status" && f.options?.length,
+  )
+  const columns: GithubColumn[] = (statusField?.options ?? []).map((o) => ({
+    label: o.name,
+    terminal: TERMINAL_STATUS_NAMES.test(o.name.trim()),
+  }))
+  // If nothing was named for a terminal column, treat the last one (GitHub's
+  // own convention — "Done" sits at the end of the default template) as it.
+  if (columns.length && !columns.some((c) => c.terminal)) {
+    columns[columns.length - 1].terminal = true
+  }
+
   const items: GithubItem[] = []
   for (const row of data.node.items.nodes) {
     if (!row.content?.title) continue
@@ -165,7 +197,8 @@ export async function listGithubItems(
       body: row.content.body ?? "",
       resolved:
         row.content.state === "CLOSED" || row.content.state === "MERGED",
+      status: row.fieldValueByName?.name,
     })
   }
-  return { title: data.node.title, items }
+  return { title: data.node.title, columns, items }
 }

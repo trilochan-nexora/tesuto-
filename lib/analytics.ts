@@ -1,5 +1,5 @@
 import {
-  type Column,
+  type ColumnTemplate,
   type IssueType,
   PRIORITY_ORDER,
   type Project,
@@ -36,7 +36,7 @@ function median(xs: number[]) {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
 }
 
-export function statusCounts(tickets: Ticket[], columns: Column[]) {
+export function statusCounts(tickets: Ticket[], columns: ColumnTemplate[]) {
   return columns.map((col) => ({
     status: col.id,
     label: col.label,

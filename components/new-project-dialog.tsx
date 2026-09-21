@@ -47,7 +47,9 @@ export function NewProjectDialog({
         description: description.trim(),
       })
     } catch (err) {
-      toast.error("Couldn't create the project")
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't create the project",
+      )
       console.error(err)
       return
     }

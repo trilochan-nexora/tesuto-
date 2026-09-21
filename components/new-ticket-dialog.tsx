@@ -2,7 +2,7 @@
 
 import { CircleDot, Columns3, Flag, FolderGit2, UserRound } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import { isEmptyHtml, RichTextEditor } from "@/components/rich-text-editor"
 import { Button } from "@/components/ui/button"
@@ -45,7 +45,7 @@ export function NewTicketDialog({
   defaultStatus?: string
   defaultParentId?: string
 }) {
-  const { projects, users, columns, addTicket } = useStore()
+  const { projects, users, columns: allColumns, addTicket } = useStore()
   const router = useRouter()
   const [open, setOpen] = useState(false)
 
@@ -56,6 +56,10 @@ export function NewTicketDialog({
   // without a real selection.
   const [projectId, setProjectId] = useState(
     defaultProjectId ?? projects[0]?.id ?? "",
+  )
+  const columns = useMemo(
+    () => allColumns.filter((c) => c.projectId === projectId),
+    [allColumns, projectId],
   )
   const [status, setStatus] = useState(defaultStatus ?? columns[0]?.id ?? "")
   const [type, setType] = useState<IssueType>("bug")
@@ -73,6 +77,17 @@ export function NewTicketDialog({
     setPriority("medium")
     setAssigneeId("unassigned")
     setStatus(defaultStatus ?? columns[0]?.id ?? "")
+  }
+
+  function selectProject(id: string) {
+    setProjectId(id)
+    // The previous status was a column id scoped to the old project — it
+    // won't exist on the new one, so fall back to that project's first
+    // column instead of submitting a status the board doesn't have.
+    const nextColumns = allColumns.filter((c) => c.projectId === id)
+    if (!nextColumns.some((c) => c.id === status)) {
+      setStatus(nextColumns[0]?.id ?? "")
+    }
   }
 
   async function submit() {
@@ -223,7 +238,7 @@ export function NewTicketDialog({
             </SelectContent>
           </Select>
 
-          <Select value={projectId} onValueChange={(v) => v && setProjectId(v)}>
+          <Select value={projectId} onValueChange={(v) => v && selectProject(v)}>
             <SelectTrigger className={PILL}>
               <FolderGit2 className="size-3.5" />
               {project?.name}

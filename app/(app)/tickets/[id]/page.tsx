@@ -69,7 +69,7 @@ export default function TicketDetailPage({
     getProject,
     getUser,
     users,
-    columns,
+    columns: allColumns,
     childrenOf,
     commentsFor,
     addComment,
@@ -93,6 +93,7 @@ export default function TicketDetailPage({
 
   if (!ticket) notFound()
 
+  const columns = allColumns.filter((c) => c.projectId === ticket.projectId)
   const project = getProject(ticket.projectId)
   const reporter = getUser(ticket.reporterId)
   const parent = ticket.parentId ? getTicket(ticket.parentId) : undefined
@@ -730,7 +731,7 @@ export default function TicketDetailPage({
               <div className="flex items-center justify-between">
                 <dt className="text-muted-foreground">State</dt>
                 <dd>
-                  <StatusBadge status={ticket.status} />
+                  <StatusBadge status={ticket.status} projectId={ticket.projectId} />
                 </dd>
               </div>
               <div className="flex items-center justify-between">

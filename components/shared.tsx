@@ -90,8 +90,19 @@ export function PriorityBadge({ priority }: { priority: TicketPriority }) {
   )
 }
 
-export function StatusBadge({ status }: { status: TicketStatus }) {
-  const { columns } = useStore()
+export function StatusBadge({
+  status,
+  projectId,
+}: {
+  status: TicketStatus
+  /** Scopes the lookup to one project's columns — omit only for cross-project
+   * views, where the label/dot are approximated from the first matching id. */
+  projectId?: string
+}) {
+  const { columns: allColumns } = useStore()
+  const columns = projectId
+    ? allColumns.filter((c) => c.projectId === projectId)
+    : allColumns
   const meta = columnMeta(status, columns)
   return (
     <Badge variant="secondary" className="gap-1.5 font-normal">

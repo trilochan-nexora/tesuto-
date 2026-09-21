@@ -12,6 +12,7 @@ export type IssueType = "bug" | "feature" | "task" | "question"
 
 export type Column = {
   id: string
+  projectId: string
   label: string
   description?: string
   /** tailwind bg-* class for the dot */
@@ -22,7 +23,11 @@ export type Column = {
   limit?: number
 }
 
-export const DEFAULT_COLUMNS: Column[] = [
+/** The template each new project's columns are seeded from — not tied to any
+ * one project, so it omits `projectId`. */
+export type ColumnTemplate = Omit<Column, "projectId">
+
+export const DEFAULT_COLUMNS: ColumnTemplate[] = [
   {
     id: "backlog",
     label: "Backlog",
@@ -53,8 +58,8 @@ export const COLUMN_DOTS = [
 
 export function columnMeta(
   id: string,
-  columns: Column[] = DEFAULT_COLUMNS,
-): Column {
+  columns: ColumnTemplate[] = DEFAULT_COLUMNS,
+): ColumnTemplate {
   return (
     columns.find((c) => c.id === id) ??
     DEFAULT_COLUMNS.find((c) => c.id === id) ?? {

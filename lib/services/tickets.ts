@@ -23,14 +23,18 @@ function nextKey(projectKey: string, keys: string[]) {
   return `${projectKey}-${max + 1}`
 }
 
-async function isTerminal(status: string) {
-  const col = await prisma.column.findUnique({ where: { id: status } })
+async function isTerminal(projectId: string, status: string) {
+  const col = await prisma.column.findUnique({
+    where: { projectId_id: { projectId, id: status } },
+  })
   if (col) return col.terminal
   return DEFAULT_COLUMNS.find((c) => c.id === status)?.terminal ?? false
 }
 
-async function statusLabel(status: string) {
-  const col = await prisma.column.findUnique({ where: { id: status } })
+async function statusLabel(projectId: string, status: string) {
+  const col = await prisma.column.findUnique({
+    where: { projectId_id: { projectId, id: status } },
+  })
   return (
     col?.label ?? DEFAULT_COLUMNS.find((c) => c.id === status)?.label ?? status
   )
@@ -145,7 +149,7 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
     annotations: (input.annotations ?? undefined) as Prisma.InputJsonValue,
     domSnapshot: (input.domSnapshot ?? undefined) as Prisma.InputJsonValue,
     context: (input.context ?? undefined) as Prisma.InputJsonValue,
-    resolvedAt: (await isTerminal(status)) ? iso : null,
+    resolvedAt: (await isTerminal(project.id, status)) ? iso : null,
     order: -Date.now(),
     events: events as unknown as Prisma.InputJsonValue,
   }
@@ -274,8 +278,9 @@ export async function patchTicket(
       from: current.status,
       to: patch.status,
     })
-    data.resolvedAt = (await isTerminal(patch.status)) ? iso : null
-    if (await isTerminal(patch.status)) resolvedInto = patch.status
+    const patchTerminal = await isTerminal(current.projectId, patch.status)
+    data.resolvedAt = patchTerminal ? iso : null
+    if (patchTerminal) resolvedInto = patch.status
   }
 
   data.events = events as unknown as Prisma.InputJsonValue
@@ -301,6 +306,7 @@ async function sendPatchNotifications(input: {
     priority: string
     sourceUrl: string | null
     assigneeId: string | null
+    projectId: string
   }
   project: { name: string; key: string } | null
   actorId: string
@@ -311,7 +317,7 @@ async function sendPatchNotifications(input: {
   const { ticket, project } = input
   const base = toNotifyTicket(ticket, project)
   if (input.resolvedInto) {
-    const label = await statusLabel(input.resolvedInto)
+    const label = await statusLabel(ticket.projectId, input.resolvedInto)
     notifyTicketResolved(base, label, input.actorId)
   }
   if (input.assignedTo) {
@@ -331,11 +337,18 @@ async function sendPatchNotifications(input: {
 }
 
 export async function bulkMove(ids: string[], status: string, actorId: string) {
-  const terminal = await isTerminal(status)
   const iso = new Date()
   const rows = await prisma.ticket.findMany({
     where: { id: { in: ids } },
   })
+  const projectIds = [...new Set(rows.map((t) => t.projectId))]
+  const terminalByProject = new Map(
+    await Promise.all(
+      projectIds.map(
+        async (pid) => [pid, await isTerminal(pid, status)] as const,
+      ),
+    ),
+  )
   await prisma.$transaction(
     rows.map((t) => {
       const events = [...((t.events as unknown as TicketEvent[]) ?? [])]
@@ -348,6 +361,7 @@ export async function bulkMove(ids: string[], status: string, actorId: string) {
           to: status,
         })
       }
+      const terminal = terminalByProject.get(t.projectId) ?? false
       return prisma.ticket.update({
         where: { id: t.id },
         data: {

@@ -23,7 +23,10 @@ export const POST = handler({
       "GitHub Projects import",
     )
     const token = await connectedGithubToken(user.id)
-    const { title, items } = await listGithubItems(token, input.projectId)
+    const { title, columns, items } = await listGithubItems(
+      token,
+      input.projectId,
+    )
     if (!items.length) {
       throw new HttpError("That board has no items to import", 422)
     }
@@ -35,6 +38,7 @@ export const POST = handler({
       type: "task" as const,
       priority: "medium" as const,
       resolved: i.resolved,
+      status: i.status,
     }))
     return importProject(
       {
@@ -43,6 +47,7 @@ export const POST = handler({
           input.description ?? `Imported from GitHub Projects “${title}”`,
         source: "github-projects",
         issues,
+        columns,
       },
       user.id,
     )

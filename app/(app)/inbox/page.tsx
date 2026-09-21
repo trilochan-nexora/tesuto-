@@ -27,13 +27,21 @@ import {
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useStore } from "@/lib/store"
+import { DEFAULT_COLUMNS } from "@/lib/types"
 
 type Filter = "all" | "mine" | "urgent" | "open"
 
 const PER_PAGE = 20
 
+const STATUS_RANK = new Map(
+  DEFAULT_COLUMNS.map((c, i) => [
+    c.id,
+    c.terminal ? 999 : DEFAULT_COLUMNS.length - i,
+  ]),
+)
+
 export default function InboxPage() {
-  const { tickets, currentUser, columns } = useStore()
+  const { tickets, currentUser } = useStore()
   const [filter, setFilter] = useState<Filter>("all")
   const [query, setQuery] = useState("")
 
@@ -62,15 +70,15 @@ export default function InboxPage() {
           t.title.toLowerCase().includes(q) || t.key.toLowerCase().includes(q),
       )
     }
-    const rank = new Map(
-      columns.map((c, i) => [c.id, c.terminal ? 999 : columns.length - i]),
-    )
+    // Columns are per-project now, so this cross-project feed ranks by the
+    // standard column set rather than any one project's live columns —
+    // custom columns just fall back to the lowest rank.
     return list.sort(
       (a, b) =>
-        (rank.get(b.status) ?? 0) - (rank.get(a.status) ?? 0) ||
+        (STATUS_RANK.get(b.status) ?? 0) - (STATUS_RANK.get(a.status) ?? 0) ||
         b.updatedAt.localeCompare(a.updatedAt),
     )
-  }, [tickets, filter, query, currentUser.id, columns])
+  }, [tickets, filter, query, currentUser.id])
 
   const pg = usePagination(filtered, PER_PAGE)
 

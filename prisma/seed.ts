@@ -39,18 +39,6 @@ async function main() {
     })),
   })
 
-  await prisma.column.createMany({
-    data: DEFAULT_COLUMNS.map((c, i) => ({
-      id: c.id,
-      label: c.label,
-      description: c.description ?? null,
-      dot: c.dot,
-      terminal: c.terminal,
-      limit: c.limit ?? null,
-      order: i,
-    })),
-  })
-
   await prisma.project.createMany({
     data: projects.map((p) => ({
       id: p.id,
@@ -61,6 +49,23 @@ async function main() {
       token: p.token,
       createdAt: new Date(p.createdAt),
     })),
+  })
+
+  // Each project gets its own copy of the standard column set, same as a
+  // GitHub Projects board.
+  await prisma.column.createMany({
+    data: projects.flatMap((p) =>
+      DEFAULT_COLUMNS.map((c, i) => ({
+        id: c.id,
+        projectId: p.id,
+        label: c.label,
+        description: c.description ?? null,
+        dot: c.dot,
+        terminal: c.terminal,
+        limit: c.limit ?? null,
+        order: i,
+      })),
+    ),
   })
 
   await prisma.ticket.createMany({

@@ -146,13 +146,14 @@ type StoreState = {
   syncToGithub: (ticketId: string) => Promise<Ticket>
 
   addColumn: (
+    projectId: string,
     label: string,
     description?: string,
     dot?: string,
   ) => Promise<Column>
-  updateColumn: (id: string, patch: Partial<Column>) => void
-  removeColumn: (id: string, reassignTo: string) => void
-  reorderColumns: (ids: string[]) => void
+  updateColumn: (projectId: string, id: string, patch: Partial<Column>) => void
+  removeColumn: (projectId: string, id: string, reassignTo: string) => void
+  reorderColumns: (projectId: string, ids: string[]) => void
   deleteTickets: (ids: string[]) => void
   bulkMove: (ids: string[], status: string) => void
 
@@ -392,8 +393,13 @@ export const useStore = create<StoreState>((set, get) => {
           })),
         )
         .catch((e) => {
-          toast.error("Project settings didn't save")
+          toast.error(
+            e instanceof Error ? e.message : "Project settings didn't save",
+          )
           console.error(e)
+          // The optimistic write above may not match what the server has
+          // (e.g. a rejected duplicate name) — resync instead of leaving it.
+          get().refresh()
         })
     },
 
@@ -489,47 +495,68 @@ export const useStore = create<StoreState>((set, get) => {
         })
     },
 
-    addColumn: async (label, description, dot) => {
+    addColumn: async (projectId, label, description, dot) => {
       const created = stripNull(
-        await api.post<Column>("/columns", { label, description, dot }),
+        await api.post<Column>("/columns", {
+          projectId,
+          label,
+          description,
+          dot,
+        }),
       )
       await refetchColumns()
       return created
     },
-    updateColumn: (id, patch) => {
+    updateColumn: (projectId, id, patch) => {
       set((s) => ({
-        columns: s.columns.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+        columns: s.columns.map((c) =>
+          c.id === id && c.projectId === projectId ? { ...c, ...patch } : c,
+        ),
       }))
-      api.patch<Column>(`/columns/${id}`, patch).catch((e) => {
+      api.patch<Column>(`/columns/${id}`, { projectId, ...patch }).catch((e) => {
         toast.error("Column change didn't save")
         console.error(e)
       })
     },
-    removeColumn: (id, reassignTo) => {
+    removeColumn: (projectId, id, reassignTo) => {
       set((s) => ({
-        columns: s.columns.filter((c) => c.id !== id),
+        columns: s.columns.filter(
+          (c) => !(c.id === id && c.projectId === projectId),
+        ),
         tickets: s.tickets.map((t) =>
-          t.status === id ? { ...t, status: reassignTo } : t,
+          t.projectId === projectId && t.status === id
+            ? { ...t, status: reassignTo }
+            : t,
         ),
       }))
       api
-        .del(`/columns/${id}?reassignTo=${encodeURIComponent(reassignTo)}`)
+        .del(
+          `/columns/${id}?projectId=${encodeURIComponent(projectId)}&reassignTo=${encodeURIComponent(reassignTo)}`,
+        )
         .catch((e) => {
           toast.error("Couldn't delete the column")
           console.error(e)
           void refetchColumns()
         })
     },
-    reorderColumns: (ids) => {
+    reorderColumns: (projectId, ids) => {
       set((s) => {
-        const byId = new Map(s.columns.map((c) => [c.id, c]))
+        const byId = new Map(
+          s.columns
+            .filter((c) => c.projectId === projectId)
+            .map((c) => [c.id, c]),
+        )
+        const reordered = ids
+          .map((i) => byId.get(i))
+          .filter((c): c is Column => Boolean(c))
         return {
-          columns: ids
-            .map((i) => byId.get(i))
-            .filter((c): c is Column => Boolean(c)),
+          columns: [
+            ...s.columns.filter((c) => c.projectId !== projectId),
+            ...reordered,
+          ],
         }
       })
-      api.post("/columns/reorder", { ids }).catch((e) => {
+      api.post("/columns/reorder", { projectId, ids }).catch((e) => {
         toast.error("Couldn't reorder columns")
         console.error(e)
         void refetchColumns()

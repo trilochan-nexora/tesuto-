@@ -1,23 +1,44 @@
 "use client"
 
-import { ArrowRight, Download, Plug, Plus, SquareKanban } from "lucide-react"
+import {
+  ArrowRight,
+  Download,
+  MoreHorizontal,
+  Pencil,
+  Plug,
+  Plus,
+  SquareKanban,
+  Trash2,
+} from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
+import { toast } from "sonner"
 import { AppHeader } from "@/components/app-header"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { ImportDialog } from "@/components/import-dialog"
 import { NewProjectDialog } from "@/components/new-project-dialog"
 import { Pagination, usePagination } from "@/components/pagination"
+import { RenameProjectDialog } from "@/components/rename-project-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Progress } from "@/components/ui/progress"
 import { useStore } from "@/lib/store"
+import type { Project } from "@/lib/types"
 
 const PER_PAGE = 12
 
 export default function ProjectsPage() {
-  const { projects, tickets, integrations } = useStore()
+  const { projects, tickets, integrations, deleteProject } = useStore()
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [renaming, setRenaming] = useState<Project | null>(null)
+  const [deleting, setDeleting] = useState<Project | null>(null)
   const pg = usePagination(projects, PER_PAGE)
   const importOff =
     !integrations.githubProjects.enabled && !integrations.clickup.enabled
@@ -91,7 +112,37 @@ export default function ProjectsPage() {
                         {project.key}
                       </span>
                     </div>
-                    <ArrowRight className="ml-auto size-4 text-muted-foreground" />
+                    <div className="ml-auto flex items-center gap-1">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="relative z-10 size-7"
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          }
+                        />
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem
+                            onClick={() => setRenaming(project)}
+                          >
+                            <Pencil className="size-4" />
+                            <span className="whitespace-nowrap">Rename</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={projects.length <= 1}
+                            onClick={() => setDeleting(project)}
+                          >
+                            <Trash2 className="size-4" />
+                            <span className="whitespace-nowrap">Delete</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <ArrowRight className="size-4 text-muted-foreground" />
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
@@ -132,6 +183,26 @@ export default function ProjectsPage() {
 
       <NewProjectDialog open={adding} onOpenChange={setAdding} />
       <ImportDialog open={importing} onOpenChange={setImporting} />
+      <RenameProjectDialog
+        project={renaming}
+        open={renaming !== null}
+        onOpenChange={(o) => !o && setRenaming(null)}
+      />
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title={`Delete ${deleting?.name}?`}
+        description={`This can't be undone. ${
+          deleting ? tickets.filter((t) => t.projectId === deleting.id).length : 0
+        } ticket(s) will be deleted.`}
+        confirmWord={deleting?.key}
+        confirmLabel="Delete project"
+        onConfirm={() => {
+          if (!deleting) return
+          deleteProject(deleting.id)
+          toast.success(`Deleted ${deleting.name}`)
+        }}
+      />
     </>
   )
 }

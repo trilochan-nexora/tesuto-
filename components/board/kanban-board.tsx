@@ -44,11 +44,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useStore } from "@/lib/store"
-import type { Column as ColumnDef, Ticket } from "@/lib/types"
+import { DEFAULT_COLUMNS, type Column as ColumnDef, type Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 function BoardColumn({
   col,
+  canEdit,
   canDelete,
   tickets,
   projectId,
@@ -61,6 +62,9 @@ function BoardColumn({
   onRemoveAll,
 }: {
   col: ColumnDef
+  /** false on the cross-project "all tickets" board, where there's no single
+   * project to scope column edits to. */
+  canEdit: boolean
   canDelete: boolean
   tickets: Ticket[]
   projectId?: string
@@ -79,7 +83,7 @@ function BoardColumn({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: col.id, data: { type: "column" } })
+  } = useSortable({ id: col.id, data: { type: "column" }, disabled: !canEdit })
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `cards:${col.id}`,
     data: { type: "cards", status: col.id },
@@ -97,18 +101,20 @@ function BoardColumn({
     >
       <div className="flex flex-col gap-0.5 px-2 py-2">
         <div className="flex items-center gap-1.5">
-          <button
-            {...attributes}
-            {...listeners}
-            className="cursor-grab touch-none rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground active:cursor-grabbing"
-            aria-label={`Reorder ${col.label} column`}
-          >
-            <GripVertical className="size-4" />
-          </button>
+          {canEdit ? (
+            <button
+              {...attributes}
+              {...listeners}
+              className="cursor-grab touch-none rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground active:cursor-grabbing"
+              aria-label={`Reorder ${col.label} column`}
+            >
+              <GripVertical className="size-4" />
+            </button>
+          ) : null}
           <span className={cn("size-2 rounded-full", col.dot)} />
           <button
             className="truncate text-sm font-medium"
-            onDoubleClick={onEditRequest}
+            onDoubleClick={canEdit ? onEditRequest : undefined}
           >
             {col.label}
           </button>
@@ -142,25 +148,29 @@ function BoardColumn({
                 }
               />
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={onEditRequest}>
-                  <Pencil className="size-4" />
-                  <span className="whitespace-nowrap">Edit column</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={index === 0}
-                  onClick={() => onMove(-1)}
-                >
-                  <ArrowLeft className="size-4" />
-                  <span className="whitespace-nowrap">Move left</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={index === total - 1}
-                  onClick={() => onMove(1)}
-                >
-                  <ArrowRight className="size-4" />
-                  <span className="whitespace-nowrap">Move right</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                {canEdit ? (
+                  <>
+                    <DropdownMenuItem onClick={onEditRequest}>
+                      <Pencil className="size-4" />
+                      <span className="whitespace-nowrap">Edit column</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={index === 0}
+                      onClick={() => onMove(-1)}
+                    >
+                      <ArrowLeft className="size-4" />
+                      <span className="whitespace-nowrap">Move left</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={index === total - 1}
+                      onClick={() => onMove(1)}
+                    >
+                      <ArrowRight className="size-4" />
+                      <span className="whitespace-nowrap">Move right</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
                 <DropdownMenuItem
                   disabled={col.terminal || tickets.length === 0}
                   onClick={onArchiveAll}
@@ -175,11 +185,15 @@ function BoardColumn({
                   <Trash2 className="size-4" />
                   <span className="whitespace-nowrap">Remove all cards</span>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem disabled={!canDelete} onClick={onDelete}>
-                  <Trash2 className="size-4" />
-                  <span className="whitespace-nowrap">Delete column</span>
-                </DropdownMenuItem>
+                {canEdit ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem disabled={!canDelete} onClick={onDelete}>
+                      <Trash2 className="size-4" />
+                      <span className="whitespace-nowrap">Delete column</span>
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -214,7 +228,7 @@ export function KanbanBoard({ projectId }: { projectId?: string }) {
   const {
     tickets,
     moveTicket,
-    columns,
+    columns: allColumns,
     addColumn,
     updateColumn,
     removeColumn,
@@ -237,6 +251,18 @@ export function KanbanBoard({ projectId }: { projectId?: string }) {
     () =>
       projectId ? tickets.filter((t) => t.projectId === projectId) : tickets,
     [tickets, projectId],
+  )
+
+  // Columns are scoped per project, same as GitHub Projects — the one
+  // cross-project "all tickets" board (no projectId) has no board of its own
+  // to edit, so it just buckets by the standard column set, read-only.
+  const canEditColumns = Boolean(projectId)
+  const columns = useMemo<ColumnDef[]>(
+    () =>
+      projectId
+        ? allColumns.filter((c) => c.projectId === projectId)
+        : DEFAULT_COLUMNS.map((c) => ({ ...c, projectId: "" })),
+    [allColumns, projectId],
   )
 
   const columnIds = useMemo(() => columns.map((c) => c.id), [columns])
@@ -285,12 +311,13 @@ export function KanbanBoard({ projectId }: { projectId?: string }) {
     if (!over) return
 
     if (type === "column") {
+      if (!projectId) return
       const overCol = columnOf(over.id as string)
       if (!overCol || overCol === active.id) return
       const oldIndex = columnIds.indexOf(active.id as string)
       const newIndex = columnIds.indexOf(overCol)
       if (oldIndex === -1 || newIndex === -1) return
-      reorderColumns(arrayMove(columnIds, oldIndex, newIndex))
+      reorderColumns(projectId, arrayMove(columnIds, oldIndex, newIndex))
       return
     }
 
@@ -332,6 +359,7 @@ export function KanbanBoard({ projectId }: { projectId?: string }) {
               <BoardColumn
                 key={col.id}
                 col={col}
+                canEdit={canEditColumns}
                 canDelete={columns.length > 1}
                 tickets={grouped[col.id] ?? []}
                 projectId={projectId}
@@ -339,14 +367,17 @@ export function KanbanBoard({ projectId }: { projectId?: string }) {
                 total={columns.length}
                 onEditRequest={() => setDialog({ mode: "edit", column: col })}
                 onDelete={() =>
+                  projectId &&
                   removeColumn(
+                    projectId,
                     col.id,
                     columnIds.find((c) => c !== col.id) ?? firstColumnId,
                   )
                 }
                 onMove={(dir) => {
+                  if (!projectId) return
                   const next = arrayMove(columnIds, i, i + dir)
-                  reorderColumns(next)
+                  reorderColumns(projectId, next)
                 }}
                 onArchiveAll={() => {
                   const term =
@@ -360,13 +391,15 @@ export function KanbanBoard({ projectId }: { projectId?: string }) {
               />
             ))}
           </SortableContext>
-          <button
-            onClick={() => setDialog({ mode: "add" })}
-            className="flex h-fit w-64 shrink-0 items-center gap-2 self-start rounded-xl border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/30 hover:text-foreground"
-          >
-            <Plus className="size-4" />
-            Add column
-          </button>
+          {canEditColumns ? (
+            <button
+              onClick={() => setDialog({ mode: "add" })}
+              className="flex h-fit w-64 shrink-0 items-center gap-2 self-start rounded-xl border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/30 hover:text-foreground"
+            >
+              <Plus className="size-4" />
+              Add column
+            </button>
+          ) : null}
         </div>
         <DragOverlay>
           {activeTicket ? (
@@ -384,12 +417,16 @@ export function KanbanBoard({ projectId }: { projectId?: string }) {
         onOpenChange={(o) => !o && setDialog(null)}
         column={dialog?.mode === "edit" ? dialog.column : undefined}
         onSubmit={(value) => {
+          if (!projectId) return
           if (dialog?.mode === "edit") {
-            updateColumn(dialog.column.id, value)
+            updateColumn(projectId, dialog.column.id, value)
           } else {
-            void addColumn(value.label, value.description, value.dot).catch(
-              (e) => console.error(e),
-            )
+            void addColumn(
+              projectId,
+              value.label,
+              value.description,
+              value.dot,
+            ).catch((e) => console.error(e))
           }
         }}
       />

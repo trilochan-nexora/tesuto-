@@ -54,7 +54,7 @@ export function TicketRow({ ticket }: { ticket: Ticket }) {
         <PriorityBadge priority={ticket.priority} />
       </div>
       <div className="hidden w-28 shrink-0 lg:block">
-        <StatusBadge status={ticket.status} />
+        <StatusBadge status={ticket.status} projectId={ticket.projectId} />
       </div>
       <UserAvatar user={assignee} />
     </Link>

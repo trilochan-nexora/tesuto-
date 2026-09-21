@@ -123,6 +123,17 @@
     }
   }
 
+  // The 5-click reveal gesture is for dev/uat/prod embeds out in the wild —
+  // on a developer's own machine (host page served from localhost) the
+  // launcher should just be there, no secret handshake required.
+  function isLocalHost() {
+    try {
+      return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)
+    } catch {
+      return false
+    }
+  }
+
   /* ------------------------------- telemetry ------------------------------- */
   const consoleErrors = []
   const failedRequests = []
@@ -364,13 +375,23 @@
   .wrap[data-theme="light"] { --bg:#ffffff; --panel:#f7f7f8; --card:#ffffff; --line:#e4e4e7;
     --text:#18181b; --muted:#71717a }
 
-  .fab { position: fixed; bottom: 20px; right: 20px; width: 52px; height: 52px; border-radius: 50%;
-    border: 1px solid var(--line); background: var(--bg); color: var(--text); cursor: pointer;
-    pointer-events: auto; display: grid; place-items: center; box-shadow: 0 10px 30px rgba(0,0,0,.35) }
-  .fab svg { width: 20px; height: 20px }
+  /* The launcher is a half-circle flush against whichever edge it's docked
+     to — it reads as growing out of the edge rather than a circle floating
+     near it. Which two corners round off (and which border drops out, so
+     there's no seam at the flush side) depends on the docked edge. */
+  .fab { position: fixed; width: 44px; height: 44px;
+    border: 1px solid ${PURPLE}; background: var(--bg); color: ${PURPLE}; cursor: grab;
+    pointer-events: auto; display: grid; place-items: center; box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    touch-action: none; user-select: none }
+  .fab.dragging { cursor: grabbing; box-shadow: 0 16px 40px rgba(0,0,0,.45) }
+  .fab svg { width: 18px; height: 18px; pointer-events: none }
+  .fab[data-edge="right"] { border-radius: 50% 0 0 50%; border-right: none }
+  .fab[data-edge="left"] { border-radius: 0 50% 50% 0; border-left: none }
+  .fab[data-edge="top"] { border-radius: 0 0 50% 50%; border-top: none }
+  .fab[data-edge="bottom"] { border-radius: 50% 50% 0 0; border-bottom: none }
 
-  .panel { position: fixed; bottom: 20px; right: 20px; width: 400px; max-width: calc(100vw - 40px);
-    height: 640px; max-height: calc(100vh - 40px); pointer-events: auto; display: flex; flex-direction: column;
+  .panel { position: fixed; bottom: 20px; right: 20px; width: 340px; max-width: calc(100vw - 32px);
+    height: 520px; max-height: calc(100vh - 32px); pointer-events: auto; display: flex; flex-direction: column;
     background: var(--bg); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
     box-shadow: 0 24px 60px rgba(0,0,0,.4) }
 
@@ -514,7 +535,10 @@
     chevR: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
     chevL: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
     chevD: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
-    chevU: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>',
+    // The launcher's own icon — deliberately not a chevron: host apps
+    // commonly have their own "scroll to top" chevron fab in the same
+    // corner, and the two were getting mistaken for each other.
+    bubble: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3C7.03 3 3 6.58 3 11c0 2.24 1.02 4.27 2.7 5.77L5 21l4.3-1.53c.85.22 1.75.34 2.7.34 4.97 0 9-3.58 9-8s-4.03-8-9-8Z"/></svg>',
     send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>',
     clip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5 12.5 21a4 4 0 0 1-6-6l9-9a3 3 0 0 1 4 4l-9 9a2 2 0 0 1-3-3l8-8"/></svg>',
     out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>',
@@ -574,7 +598,7 @@
     issueFrom: "page", // which tab openIssue() was called from
     thread: [],
     threadTimer: null,
-    unlocked: false, // fab stays hidden until the corner click-gesture fires (see hotspot)
+    unlocked: isLocalHost(), // fab stays hidden until the corner click-gesture fires (see hotspot) — always on for a localhost host page
   }
 
   const wrap = document.createElement("div")
@@ -586,10 +610,142 @@
   const fab = document.createElement("button")
   fab.className = "fab"
   fab.addEventListener("click", () => {
+    // A drag ends with a click on the same element — swallow that one.
+    if (fabDragged) {
+      fabDragged = false
+      return
+    }
     if (state.view === "collapsed") go("actions")
     else collapse()
   })
   wrap.appendChild(fab)
+
+  // Draggable launcher bubble — constrained to the four screen edges, like a
+  // chat head: while dragging it tracks the pointer but stays flush against
+  // whichever edge is nearest (see the half-circle `.fab[data-edge]` rules),
+  // sliding along it and hopping to an adjacent edge near a corner, rather
+  // than floating freely mid-screen. Position is stored as {edge, frac}
+  // (frac = 0..1 along that edge) so it stays valid across window resizes;
+  // the default (never moved) docks bottom-right on the right edge.
+  const FAB_POS_KEY = "tesuto:widget-fab-pos"
+  const FAB_EDGE_GAP = 0 // flush against the edge — no floating gap
+  const FAB_PERP_MARGIN = 12 // clearance from the corners along that edge
+  const PANEL_GAP = 20 // the open panel keeps a real margin, unlike the bubble
+  const DRAG_THRESHOLD = 4 // px of movement before a press counts as a drag
+  const DEFAULT_FAB_POS = { edge: "right", frac: 1 }
+  let fabPos = DEFAULT_FAB_POS
+  let fabDrag = null
+  let fabDragged = false
+  try {
+    const raw = JSON.parse(ls.get(FAB_POS_KEY) || "null")
+    if (
+      raw &&
+      ["left", "right", "top", "bottom"].includes(raw.edge) &&
+      typeof raw.frac === "number"
+    )
+      fabPos = raw
+  } catch {}
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi))
+  function edgeFromPoint(x, y, w, h) {
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const d = { left: x, right: vw - x, top: y, bottom: vh - y }
+    const edge = Object.keys(d).reduce((a, b) => (d[a] < d[b] ? a : b))
+    const along =
+      edge === "left" || edge === "right"
+        ? clamp(
+            (y - h / 2 - FAB_PERP_MARGIN) / Math.max(1, vh - h - 2 * FAB_PERP_MARGIN),
+            0,
+            1,
+          )
+        : clamp(
+            (x - w / 2 - FAB_PERP_MARGIN) / Math.max(1, vw - w - 2 * FAB_PERP_MARGIN),
+            0,
+            1,
+          )
+    return { edge, frac: along }
+  }
+  // Shared dock math for both the bubble (flush, tight corner clearance) and
+  // the panel (real margin all round) — same {edge, frac} frame either way.
+  function dockStyle(pos, w, h, edgeGap, perpMargin) {
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    if (pos.edge === "left" || pos.edge === "right") {
+      const top = clamp(
+        perpMargin + pos.frac * Math.max(0, vh - h - 2 * perpMargin),
+        0,
+        Math.max(0, vh - h),
+      )
+      return { [pos.edge]: edgeGap, top }
+    }
+    const left = clamp(
+      perpMargin + pos.frac * Math.max(0, vw - w - 2 * perpMargin),
+      0,
+      Math.max(0, vw - w),
+    )
+    return { [pos.edge]: edgeGap, left }
+  }
+  function applyFabPos() {
+    fab.style.left = fab.style.right = fab.style.top = fab.style.bottom = ""
+    fab.dataset.edge = fabPos.edge
+    const style = dockStyle(
+      fabPos,
+      fab.offsetWidth || 44,
+      fab.offsetHeight || 44,
+      FAB_EDGE_GAP,
+      FAB_PERP_MARGIN,
+    )
+    for (const k in style) fab.style[k] = style[k] + "px"
+  }
+  // The panel opens against whichever edge the bubble is currently docked
+  // to, with a real margin so it doesn't butt up against the browser edge.
+  function placePanel() {
+    panel.style.left = panel.style.right = panel.style.top = panel.style.bottom = ""
+    const style = dockStyle(
+      fabPos,
+      panel.offsetWidth,
+      panel.offsetHeight,
+      PANEL_GAP,
+      PANEL_GAP,
+    )
+    for (const k in style) panel.style[k] = style[k] + "px"
+  }
+  fab.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return
+    fabDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false }
+    try {
+      fab.setPointerCapture(e.pointerId)
+    } catch {}
+  })
+  fab.addEventListener("pointermove", (e) => {
+    if (!fabDrag || e.pointerId !== fabDrag.id) return
+    if (!fabDrag.moved) {
+      if (Math.hypot(e.clientX - fabDrag.x, e.clientY - fabDrag.y) < DRAG_THRESHOLD)
+        return
+      fabDrag.moved = true
+      fab.classList.add("dragging")
+    }
+    fabPos = edgeFromPoint(e.clientX, e.clientY, fab.offsetWidth, fab.offsetHeight)
+    applyFabPos()
+  })
+  function endFabDrag(e) {
+    if (!fabDrag || e.pointerId !== fabDrag.id) return
+    const moved = fabDrag.moved
+    fabDrag = null
+    fab.classList.remove("dragging")
+    if (!moved) return
+    // Only a real drag suppresses the click; pointercancel fires no click.
+    fabDragged = e.type === "pointerup"
+    try {
+      ls.set(FAB_POS_KEY, JSON.stringify(fabPos))
+    } catch {}
+  }
+  fab.addEventListener("pointerup", endFabDrag)
+  fab.addEventListener("pointercancel", endFabDrag)
+  window.addEventListener("resize", () => {
+    applyFabPos()
+    if (state.view !== "collapsed") placePanel()
+  })
 
   // Hidden reveal gesture: the fab stays invisible until this corner region is
   // clicked 5 times within CLICK_WINDOW_MS. Same behavior in dev and prod — no
@@ -599,7 +755,11 @@
   let unlockClicks = []
   const hotspot = document.createElement("div")
   hotspot.style.cssText =
-    "position:fixed;bottom:0;right:0;width:90px;height:90px;pointer-events:auto;background:transparent"
+    "position:fixed;bottom:0;right:0;width:90px;height:90px;background:transparent"
+  // Once unlocked (gesture fired, or already unlocked on localhost) the
+  // hotspot has nothing left to do — stop absorbing clicks so it doesn't
+  // block the host page underneath it.
+  hotspot.style.pointerEvents = state.unlocked ? "none" : "auto"
   hotspot.addEventListener("click", () => {
     if (state.unlocked) return
     const now = Date.now()
@@ -608,6 +768,7 @@
     if (unlockClicks.length >= CLICKS_NEEDED) {
       unlockClicks = []
       state.unlocked = true
+      hotspot.style.pointerEvents = "none"
       go("actions")
     }
   })
@@ -662,8 +823,12 @@
     const open = state.view !== "collapsed"
     panel.style.display = open ? "flex" : "none"
     fab.style.display = open ? "none" : state.unlocked ? "grid" : "none"
-    fab.innerHTML = I.chevU
-    if (!open) return
+    fab.innerHTML = I.bubble
+    if (!open) {
+      applyFabPos()
+      return
+    }
+    placePanel()
 
     shell.innerHTML = ""
     if (state.view === "tokenprompt" || !TOKEN || state.badToken) {

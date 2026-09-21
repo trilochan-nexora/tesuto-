@@ -24,13 +24,18 @@ import {
   typeCounts,
 } from "@/lib/analytics"
 import { useStore } from "@/lib/store"
-import { PRIORITY_HEX, PRIORITY_META, TYPE_META } from "@/lib/types"
+import {
+  DEFAULT_COLUMNS,
+  PRIORITY_HEX,
+  PRIORITY_META,
+  TYPE_META,
+} from "@/lib/types"
 import { initials } from "@/lib/utils"
 
 type Range = "all" | "p1" | "p2" | "p3" | "p4" | "p5"
 
 export default function AnalyticsPage() {
-  const { tickets, users, projects, columns } = useStore()
+  const { tickets, users, projects, columns: allColumns } = useStore()
   const [projectId, setProjectId] = useState<Range>("all")
 
   const scoped = useMemo(
@@ -40,12 +45,21 @@ export default function AnalyticsPage() {
         : tickets.filter((t) => t.projectId === projectId),
     [tickets, projectId],
   )
+  // "All" spans every project's own columns, so there's no single column set
+  // to break down by — fall back to the standard one, same as the inbox.
+  const statusColumns = useMemo(
+    () =>
+      projectId === "all"
+        ? DEFAULT_COLUMNS
+        : allColumns.filter((c) => c.projectId === projectId),
+    [allColumns, projectId],
+  )
 
   const cycle = useMemo(() => cycleTimes(scoped), [scoped])
   const flow = useMemo(() => throughput(scoped, 21), [scoped])
   const byStatus = useMemo(
-    () => statusCounts(scoped, columns),
-    [scoped, columns],
+    () => statusCounts(scoped, statusColumns),
+    [scoped, statusColumns],
   )
   const byPriority = useMemo(() => priorityCounts(scoped), [scoped])
   const byType = useMemo(() => typeCounts(scoped), [scoped])

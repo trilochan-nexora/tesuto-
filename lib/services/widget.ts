@@ -289,7 +289,10 @@ export async function verifyLink(input: {
 
 export async function widgetBootstrap(req: Request) {
   const { user, project } = await widgetAuth(req)
-  const columns = await prisma.column.findMany({ orderBy: { order: "asc" } })
+  const columns = await prisma.column.findMany({
+    where: { projectId: project.id },
+    orderBy: { order: "asc" },
+  })
   return {
     project: { id: project.id, key: project.key, name: project.name },
     user: { id: user.id, name: user.name, color: user.color },
@@ -364,13 +367,20 @@ export async function widgetIssue(req: Request, id: string) {
   if (!t || t.projectId !== project.id) {
     throw new HttpError("Issue not found", 404)
   }
+  const columns = (
+    await prisma.column.findMany({ where: { projectId: project.id } })
+  ).map((c) => ({
+    ...c,
+    description: c.description ?? undefined,
+    limit: c.limit ?? undefined,
+  }))
   return {
     id: t.id,
     key: t.key,
     title: t.title,
     description: t.description,
     status: t.status,
-    statusLabel: columnMeta(t.status).label,
+    statusLabel: columnMeta(t.status, columns).label,
     priority: t.priority,
     type: t.type,
     sourceUrl: t.sourceUrl,

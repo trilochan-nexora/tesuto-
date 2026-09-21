@@ -22,7 +22,9 @@ export async function loadBootstrap(me: SessionUser) {
     await Promise.all([
       prisma.user.findMany({ orderBy: { name: "asc" } }),
       prisma.project.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.column.findMany({ orderBy: { order: "asc" } }),
+      prisma.column.findMany({
+        orderBy: [{ projectId: "asc" }, { order: "asc" }],
+      }),
       prisma.ticket.findMany({ orderBy: { order: "asc" } }),
       prisma.comment.findMany({ orderBy: { createdAt: "asc" } }),
       prisma.doc.findMany({ orderBy: { createdAt: "desc" } }),
