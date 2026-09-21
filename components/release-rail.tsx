@@ -6,6 +6,8 @@ import { cn, formatRelativeTime } from "@/lib/utils"
 
 export function ReleaseRail({ activeId }: { activeId?: string }) {
   const releases = useReleases()
+  // /releases (no [id]) shows the latest release inline — highlight it too.
+  const resolvedActiveId = activeId ?? releases?.[0]?.id
 
   return (
     <div className="flex w-64 shrink-0 flex-col border-r bg-muted/20">
@@ -26,7 +28,7 @@ export function ReleaseRail({ activeId }: { activeId?: string }) {
                   href={`/releases/${r.id}`}
                   className={cn(
                     "flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-sm transition-colors",
-                    activeId === r.id
+                    resolvedActiveId === r.id
                       ? "bg-accent text-accent-foreground"
                       : "hover:bg-muted",
                   )}

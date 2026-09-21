@@ -1,8 +1,7 @@
 "use client"
 
 import { Rocket } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { ReleaseDetail } from "@/components/release-detail"
 import { useReleases } from "@/components/releases-context"
 import {
   Empty,
@@ -14,15 +13,12 @@ import {
 
 export default function ReleasesPage() {
   const releases = useReleases()
-  const router = useRouter()
 
-  useEffect(() => {
-    if (releases && releases.length > 0) {
-      router.replace(`/releases/${releases[0].id}`)
-    }
-  }, [releases, router])
+  if (releases === null) {
+    return <div className="flex-1" />
+  }
 
-  if (releases && releases.length === 0) {
+  if (releases.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
         <Empty>
@@ -41,5 +37,5 @@ export default function ReleasesPage() {
     )
   }
 
-  return null
+  return <ReleaseDetail release={releases[0]} />
 }
