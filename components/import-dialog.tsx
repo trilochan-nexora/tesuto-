@@ -132,13 +132,19 @@ export function ImportDialog({
     }
   }
 
-  async function loadClickupTeams() {
+  function openClickup() {
     if (cuOff) {
       toast.error("ClickUp import is disabled", {
         description: "An admin can enable it in Settings → Integrations.",
       })
       return
     }
+    // Just reveals the token field — loadClickupTeams() (below) needs a
+    // token to already be typed, so it can't also be what gets you here.
+    setStep("clickup")
+  }
+
+  async function loadClickupTeams() {
     if (cuToken.trim().length < 10) {
       toast.error("Paste a ClickUp API token first")
       return
@@ -150,7 +156,6 @@ export function ImportDialog({
       })
       setCuTeams(teams)
       if (!teams.length) toast.info("That token sees no workspaces")
-      setStep("clickup")
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't reach ClickUp")
     } finally {
@@ -242,7 +247,7 @@ export function ImportDialog({
             <button
               type="button"
               disabled={cuOff}
-              onClick={loadClickupTeams}
+              onClick={openClickup}
               className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4 text-left transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
             >
               <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-foreground text-background">
