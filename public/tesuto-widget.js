@@ -52,8 +52,14 @@ export function initTesutoWidget(opts = {}) {
     alwaysVisible: opts.alwaysVisible,
   }
 
+  // Cache-bust: widget.js is fetched by this script tag, not the page's own
+  // resource list, so neither a normal nor a hard reload revalidates it —
+  // whatever CDN/browser TTL is in front of it (intentionally short here,
+  // but e.g. Cloudflare has been seen overriding it to hours) just gets
+  // replayed until it expires. A per-load query string forces a fresh fetch
+  // every time regardless of any cache header upstream.
   const s = document.createElement("script")
-  s.src = origin.replace(/\/$/, "") + "/widget.js"
+  s.src = origin.replace(/\/$/, "") + "/widget.js?v=" + Date.now()
   s.defer = true
   ;(document.head || document.documentElement).appendChild(s)
 }
