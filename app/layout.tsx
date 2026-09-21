@@ -1,6 +1,7 @@
 import { Analytics } from "@vercel/analytics/next"
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import { connection } from "next/server"
 import { Providers } from "@/components/providers"
 import "./globals.css"
 
@@ -54,11 +55,14 @@ export const viewport: Viewport = {
   ],
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // A request-bound render is required for Next to attach the per-request CSP
+  // nonce created in proxy.ts to framework and application scripts.
+  await connection()
   return (
     <html lang="en" suppressHydrationWarning>
       {/* suppressHydrationWarning: browser extensions (ColorZilla, Grammarly,

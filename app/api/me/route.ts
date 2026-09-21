@@ -3,11 +3,14 @@ import { handler } from "@/lib/api"
 import { updateProfile } from "@/lib/services/users"
 
 const ProfileSchema = z.object({
-  name: z.string().min(1).optional(),
-  title: z.string().nullable().optional(),
-  bio: z.string().nullable().optional(),
-  color: z.string().optional(),
-  githubLogin: z.string().nullable().optional(),
+  name: z.string().trim().min(1).max(100).optional(),
+  title: z.string().trim().max(100).nullable().optional(),
+  bio: z.string().max(2_000).nullable().optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9a-f]{6}$/i)
+    .optional(),
+  githubLogin: z.string().trim().max(100).nullable().optional(),
 })
 
 export const PATCH = handler({

@@ -1,19 +1,25 @@
 import { z } from "zod"
 import { handler } from "@/lib/api"
-import { zAnnotation, zPriority, zType } from "@/lib/schemas"
+import {
+  zAnnotation,
+  zDescription,
+  zId,
+  zPriority,
+  zTitle,
+  zType,
+} from "@/lib/schemas"
 import { deleteTickets, getTicket, patchTicket } from "@/lib/services/tickets"
 
 const PatchSchema = z.object({
-  title: z.string().min(1).optional(),
-  description: z.string().nullable().optional(),
-  status: z.string().optional(),
+  title: zTitle.optional(),
+  description: zDescription.nullable().optional(),
+  status: zId.optional(),
   priority: zPriority.optional(),
   type: zType.optional(),
-  assigneeId: z.string().nullable().optional(),
-  parentId: z.string().nullable().optional(),
-  order: z.number().optional(),
-  githubIssueUrl: z.string().nullable().optional(),
-  annotations: z.array(zAnnotation).nullable().optional(),
+  assigneeId: zId.nullable().optional(),
+  parentId: zId.nullable().optional(),
+  order: z.number().finite().optional(),
+  annotations: z.array(zAnnotation).max(200).nullable().optional(),
 })
 
 export const GET = handler({

@@ -3,14 +3,7 @@
 import { useEffect } from "react"
 import { toast } from "sonner"
 import { create } from "zustand"
-import {
-  api,
-  clearToken,
-  getToken,
-  setToken,
-  setUnauthorizedHandler,
-  stripNull,
-} from "./api-client"
+import { ApiError, api, setUnauthorizedHandler, stripNull } from "./api-client"
 import {
   type Column,
   type Comment,
@@ -46,14 +39,14 @@ export type NewTicketInput = {
   context?: Ticket["context"]
 }
 
-export type AuthState = "loading" | "authed" | "anon"
+export type AuthState = "loading" | "authed" | "anon" | "error"
+export type SyncState = "idle" | "syncing" | "error"
 
 type Bootstrap = {
   users: User[]
   projects: Project[]
   columns: Column[]
   tickets: Ticket[]
-  comments: Comment[]
   docs: Doc[]
   integrations: Integrations
   me: User
@@ -82,7 +75,10 @@ const SETTING_KEYS: Record<IntegrationKey, string> = {
 
 type StoreState = {
   authState: AuthState
-  signIn: (name: string, email: string) => Promise<void>
+  syncState: SyncState
+  syncError: string | null
+  requestSignInCode: (email: string) => Promise<void>
+  verifySignInCode: (email: string, code: string) => Promise<void>
   signOut: () => Promise<void>
   refresh: () => void
 
@@ -92,6 +88,7 @@ type StoreState = {
   columns: Column[]
   tickets: Ticket[]
   comments: Comment[]
+  loadedCommentTicketIds: string[]
   docs: Doc[]
   /** The signed-in user. Only read inside `<SignInGate>` (authState "authed"). */
   currentUser: User
@@ -109,6 +106,7 @@ type StoreState = {
   getTicket: (id: string) => Ticket | undefined
   getDoc: (id: string) => Doc | undefined
   commentsFor: (ticketId: string) => Comment[]
+  loadComments: (ticketId: string) => Promise<void>
   resolveProjectByToken: (token: string) => Project | undefined
 
   addProject: (input: { name: string; description: string }) => Promise<Project>
@@ -234,12 +232,15 @@ export const useStore = create<StoreState>((set, get) => {
 
   return {
     authState: "loading",
+    syncState: "idle",
+    syncError: null,
     users: [],
     projects: [],
     sprints: NO_SPRINTS,
     columns: [],
     tickets: [],
     comments: [],
+    loadedCommentTicketIds: [],
     docs: [],
     currentUser: undefined as unknown as User,
     isAdmin: false,
@@ -249,8 +250,22 @@ export const useStore = create<StoreState>((set, get) => {
     _lastLoad: 0,
 
     _load: async () => {
-      set({ _lastLoad: Date.now() })
-      const b = stripNull(await api.get<Bootstrap>("/bootstrap"))
+      set({ _lastLoad: Date.now(), syncState: "syncing", syncError: null })
+      let b: Bootstrap
+      try {
+        b = stripNull(await api.get<Bootstrap>("/bootstrap"))
+      } catch (error) {
+        if (!(error instanceof ApiError && error.status === 401)) {
+          set((state) => ({
+            syncState: "error",
+            syncError:
+              error instanceof Error ? error.message : "Couldn't load Tesuto",
+            authState:
+              state.authState === "loading" ? "error" : state.authState,
+          }))
+        }
+        throw error
+      }
       // One atomic set(): authState flips to "authed" in the same update as
       // currentUser. Splitting this into two set() calls (as before) let
       // subscribers — e.g. <SignInGate> — observe authState: "authed" with
@@ -262,10 +277,11 @@ export const useStore = create<StoreState>((set, get) => {
         projects: b.projects,
         columns: b.columns,
         tickets: b.tickets,
-        comments: b.comments,
         docs: b.docs,
         integrations: b.integrations ?? DEFAULT_INTEGRATIONS,
         authState: "authed" as const,
+        syncState: "idle" as const,
+        syncError: null,
         users: b.users,
         currentUser: me as User,
         isAdmin: me?.role === "admin",
@@ -279,6 +295,7 @@ export const useStore = create<StoreState>((set, get) => {
         columns: [],
         tickets: [],
         comments: [],
+        loadedCommentTicketIds: [],
         docs: [],
         _meId: null,
         currentUser: undefined as unknown as User,
@@ -286,21 +303,25 @@ export const useStore = create<StoreState>((set, get) => {
         githubConnected: false,
         integrations: DEFAULT_INTEGRATIONS,
         authState: "anon",
+        syncState: "idle",
+        syncError: null,
       }),
 
     refresh: () => {
-      if (getToken())
-        void get()
-          ._load()
-          .catch(() => {})
+      if (get().syncState === "syncing") return
+      void get()
+        ._load()
+        .catch(() => {})
     },
 
-    signIn: async (name, email) => {
-      const { user, token } = await api.post<{ user: User; token: string }>(
-        "/auth/sign-in",
-        { name, email },
-      )
-      setToken(token)
+    requestSignInCode: async (email) => {
+      await api.post("/auth/sign-in", { email })
+    },
+    verifySignInCode: async (email, code) => {
+      const { user } = await api.post<{ user: User }>("/auth/verify", {
+        email,
+        code,
+      })
       set({ _meId: user.id })
       await get()._load()
     },
@@ -308,7 +329,6 @@ export const useStore = create<StoreState>((set, get) => {
       try {
         await api.post("/auth/sign-out")
       } catch {}
-      clearToken()
       get()._reset()
     },
 
@@ -325,6 +345,22 @@ export const useStore = create<StoreState>((set, get) => {
       get()
         .comments.filter((c) => c.ticketId === ticketId)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    loadComments: async (ticketId) => {
+      if (get().loadedCommentTicketIds.includes(ticketId)) return
+      const rows = stripNull(
+        await api.get<Comment[]>(`/tickets/${ticketId}/comments`),
+      )
+      set((state) => ({
+        comments: [
+          ...state.comments.filter((comment) => comment.ticketId !== ticketId),
+          ...rows,
+        ],
+        loadedCommentTicketIds: [
+          ...state.loadedCommentTicketIds.filter((id) => id !== ticketId),
+          ticketId,
+        ],
+      }))
+    },
     resolveProjectByToken: (token) =>
       get().projects.find((p) => p.token === token.trim()),
 
@@ -361,6 +397,11 @@ export const useStore = create<StoreState>((set, get) => {
       return ingestImported(created)
     },
     deleteProject: (id) => {
+      const previous = {
+        projects: get().projects,
+        tickets: get().tickets,
+        docs: get().docs,
+      }
       set((s) => ({
         projects: s.projects.filter((p) => p.id !== id),
         tickets: s.tickets.filter((t) => t.projectId !== id),
@@ -369,11 +410,13 @@ export const useStore = create<StoreState>((set, get) => {
         ),
       }))
       api.del(`/projects/${id}`).catch((e) => {
+        set(previous)
         toast.error("Couldn't delete the project")
         console.error(e)
       })
     },
     updateProject: (id, patch) => {
+      const previous = get().projects.find((project) => project.id === id)
       const body: Record<string, unknown> = {}
       for (const key of ["name", "description", "githubRepo"] as const) {
         if (key in patch) body[key] = patch[key] ?? null
@@ -393,13 +436,17 @@ export const useStore = create<StoreState>((set, get) => {
           })),
         )
         .catch((e) => {
+          if (previous) {
+            set((s) => ({
+              projects: s.projects.map((project) =>
+                project.id === id ? previous : project,
+              ),
+            }))
+          }
           toast.error(
             e instanceof Error ? e.message : "Project settings didn't save",
           )
           console.error(e)
-          // The optimistic write above may not match what the server has
-          // (e.g. a rejected duplicate name) — resync instead of leaving it.
-          get().refresh()
         })
     },
 
@@ -409,6 +456,7 @@ export const useStore = create<StoreState>((set, get) => {
       return created
     },
     updateTicket: (id, patch) => {
+      const previous = get().tickets.find((ticket) => ticket.id === id)
       const body: Record<string, unknown> = {}
       for (const key of [
         "title",
@@ -431,11 +479,13 @@ export const useStore = create<StoreState>((set, get) => {
         .patch<Ticket>(`/tickets/${id}`, body)
         .then(upsertTicket)
         .catch((e) => {
+          if (previous) upsertTicket(previous)
           toast.error("Change didn't save")
           console.error(e)
         })
     },
     moveTicket: (id, status, order) => {
+      const previous = get().tickets.find((ticket) => ticket.id === id)
       const iso = new Date().toISOString()
       const actorId = get().currentUser?.id
       const terminal = isTerminal(status)
@@ -466,16 +516,25 @@ export const useStore = create<StoreState>((set, get) => {
         .patch<Ticket>(`/tickets/${id}`, { status, order })
         .then(upsertTicket)
         .catch((e) => {
+          if (previous) upsertTicket(previous)
           toast.error("Couldn't move that ticket")
           console.error(e)
-          get().refresh()
         })
     },
     setTicketSprint: () => {},
     addComment: (ticketId, body) => {
       api
         .post<Comment>(`/tickets/${ticketId}/comments`, { body })
-        .then((c) => set((s) => ({ comments: [...s.comments, stripNull(c)] })))
+        .then((c) =>
+          set((s) => ({
+            comments: [...s.comments, stripNull(c)],
+            tickets: s.tickets.map((ticket) =>
+              ticket.id === ticketId
+                ? { ...ticket, commentCount: (ticket.commentCount ?? 0) + 1 }
+                : ticket,
+            ),
+          })),
+        )
         .catch((e) => {
           toast.error("Comment didn't post")
           console.error(e)
@@ -508,17 +567,32 @@ export const useStore = create<StoreState>((set, get) => {
       return created
     },
     updateColumn: (projectId, id, patch) => {
+      const previous = get().columns.find(
+        (column) => column.id === id && column.projectId === projectId,
+      )
       set((s) => ({
         columns: s.columns.map((c) =>
           c.id === id && c.projectId === projectId ? { ...c, ...patch } : c,
         ),
       }))
-      api.patch<Column>(`/columns/${id}`, { projectId, ...patch }).catch((e) => {
-        toast.error("Column change didn't save")
-        console.error(e)
-      })
+      api
+        .patch<Column>(`/columns/${id}`, { projectId, ...patch })
+        .catch((e) => {
+          if (previous) {
+            set((s) => ({
+              columns: s.columns.map((column) =>
+                column.id === id && column.projectId === projectId
+                  ? previous
+                  : column,
+              ),
+            }))
+          }
+          toast.error("Column change didn't save")
+          console.error(e)
+        })
     },
     removeColumn: (projectId, id, reassignTo) => {
+      const previous = { columns: get().columns, tickets: get().tickets }
       set((s) => ({
         columns: s.columns.filter(
           (c) => !(c.id === id && c.projectId === projectId),
@@ -534,12 +608,13 @@ export const useStore = create<StoreState>((set, get) => {
           `/columns/${id}?projectId=${encodeURIComponent(projectId)}&reassignTo=${encodeURIComponent(reassignTo)}`,
         )
         .catch((e) => {
+          set(previous)
           toast.error("Couldn't delete the column")
           console.error(e)
-          void refetchColumns()
         })
     },
     reorderColumns: (projectId, ids) => {
+      const previous = get().columns
       set((s) => {
         const byId = new Map(
           s.columns
@@ -557,20 +632,23 @@ export const useStore = create<StoreState>((set, get) => {
         }
       })
       api.post("/columns/reorder", { projectId, ids }).catch((e) => {
+        set({ columns: previous })
         toast.error("Couldn't reorder columns")
         console.error(e)
-        void refetchColumns()
       })
     },
     deleteTickets: (ids) => {
+      const previous = get().tickets
       const drop = new Set(ids)
       set((s) => ({ tickets: s.tickets.filter((t) => !drop.has(t.id)) }))
       api.post("/tickets/bulk", { action: "delete", ids }).catch((e) => {
+        set({ tickets: previous })
         toast.error("Couldn't delete tickets")
         console.error(e)
       })
     },
     bulkMove: (ids, status) => {
+      const previous = get().tickets
       const hit = new Set(ids)
       const iso = new Date().toISOString()
       const terminal = isTerminal(status)
@@ -598,6 +676,7 @@ export const useStore = create<StoreState>((set, get) => {
         ),
       }))
       api.post("/tickets/bulk", { action: "move", ids, status }).catch((e) => {
+        set({ tickets: previous })
         toast.error("Couldn't move tickets")
         console.error(e)
       })
@@ -616,6 +695,7 @@ export const useStore = create<StoreState>((set, get) => {
       return created
     },
     updateDoc: (id, patch) => {
+      const previous = get().docs.find((doc) => doc.id === id)
       set((s) => ({
         docs: s.docs.map((d) =>
           d.id === id
@@ -624,13 +704,20 @@ export const useStore = create<StoreState>((set, get) => {
         ),
       }))
       api.patch<Doc>(`/docs/${id}`, patch).catch((e) => {
+        if (previous) {
+          set((s) => ({
+            docs: s.docs.map((doc) => (doc.id === id ? previous : doc)),
+          }))
+        }
         toast.error("Doc didn't save")
         console.error(e)
       })
     },
     deleteDoc: (id) => {
+      const previous = get().docs
       set((s) => ({ docs: s.docs.filter((d) => d.id !== id) }))
       api.del(`/docs/${id}`).catch((e) => {
+        set({ docs: previous })
         toast.error("Couldn't delete the doc")
         console.error(e)
       })
@@ -642,6 +729,7 @@ export const useStore = create<StoreState>((set, get) => {
       return created
     },
     updateUser: (id, patch) => {
+      const previous = get().users.find((user) => user.id === id)
       set((s) =>
         withUsers(s.users.map((u) => (u.id === id ? { ...u, ...patch } : u))),
       )
@@ -649,6 +737,7 @@ export const useStore = create<StoreState>((set, get) => {
         .patch<User>(`/users/${id}`, patch)
         .then(upsertUser)
         .catch((e) => {
+          if (previous) upsertUser(previous)
           toast.error("Couldn't update the user")
           console.error(e)
         })
@@ -656,6 +745,7 @@ export const useStore = create<StoreState>((set, get) => {
     updateProfile: (patch) => {
       const meId = get()._meId
       if (!meId) return
+      const previous = get().users.find((user) => user.id === meId)
       set((s) =>
         withUsers(s.users.map((u) => (u.id === meId ? { ...u, ...patch } : u))),
       )
@@ -663,6 +753,7 @@ export const useStore = create<StoreState>((set, get) => {
         .patch<User>("/me", patch)
         .then(upsertUser)
         .catch((e) => {
+          if (previous) upsertUser(previous)
           toast.error("Profile didn't save")
           console.error(e)
         })
@@ -671,6 +762,7 @@ export const useStore = create<StoreState>((set, get) => {
      * browser leaves for github.com. Completion lands on /settings with a
      * `?github=` result the settings page toasts. */
     updateIntegration: (key, enabled) => {
+      const previous = get().integrations[key]
       set((s) => ({
         integrations: {
           ...s.integrations,
@@ -683,9 +775,11 @@ export const useStore = create<StoreState>((set, get) => {
           enabled,
         })
         .catch((e) => {
+          set((s) => ({
+            integrations: { ...s.integrations, [key]: previous },
+          }))
           toast.error("Couldn't update that integration")
           console.error(e)
-          get().refresh()
         })
     },
     connectGithub: () => {
@@ -721,15 +815,10 @@ export function StoreEffects() {
       window.localStorage.removeItem("tesuto:v3")
     } catch {}
 
-    if (!getToken()) {
-      useStore.setState({ authState: "anon" })
-      return
-    }
-
     useStore
       .getState()
       ._load()
-      .catch(() => useStore.getState()._reset())
+      .catch(() => {})
 
     // Keep the board fresh so issues filed elsewhere (the embedded widget on
     // another origin, a teammate) show up without a manual reload.
@@ -737,7 +826,7 @@ export function StoreEffects() {
       const s = useStore.getState()
       if (
         document.visibilityState === "visible" &&
-        getToken() &&
+        s.authState === "authed" &&
         Date.now() - s._lastLoad > minAge
       ) {
         void s._load().catch(() => {})

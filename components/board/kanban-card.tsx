@@ -18,10 +18,10 @@ export function KanbanCard({
   overlay?: boolean
 }) {
   const router = useRouter()
-  const { getUser, getProject, comments } = useStore()
+  const { getUser, getProject } = useStore()
   const assignee = getUser(ticket.assigneeId)
   const project = getProject(ticket.projectId)
-  const commentCount = comments.filter((c) => c.ticketId === ticket.id).length
+  const commentCount = ticket.commentCount ?? 0
 
   const {
     attributes,

@@ -17,6 +17,7 @@ node_modules
 
 # Backend
 /db_data
+/.data/
 /prisma/generated
 # agent skill installs
 .agents/

@@ -6,6 +6,7 @@
  */
 import { PrismaPg } from "@prisma/adapter-pg"
 import { comments, docs, projects, tickets, users } from "../lib/data"
+import { deleteStoredMedia } from "../lib/media"
 import { DEFAULT_COLUMNS } from "../lib/types"
 import { PrismaClient } from "./generated/client"
 
@@ -16,8 +17,12 @@ const prisma = new PrismaClient({
 const d = (iso?: string) => (iso ? new Date(iso) : null)
 
 async function main() {
+  const media = await prisma.mediaObject.findMany({
+    select: { storageKey: true },
+  })
   await prisma.comment.deleteMany()
   await prisma.ticket.deleteMany()
+  await deleteStoredMedia(media)
   await prisma.doc.deleteMany()
   await prisma.session.deleteMany()
   await prisma.project.deleteMany()

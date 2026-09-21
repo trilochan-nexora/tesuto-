@@ -1,4 +1,4 @@
-import { createHash, randomInt, timingSafeEqual } from "node:crypto"
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto"
 import { HttpError } from "@/lib/api"
 import { verifyAssertion } from "@/lib/assertion"
 import {
@@ -6,20 +6,23 @@ import {
   createSession,
   destroySession,
   getSessionUser,
+  WIDGET_SESSION_TTL_MS,
 } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { sendEmail } from "@/lib/notify"
-import { columnMeta, PROJECT_COLORS } from "@/lib/types"
+import {
+  authDevCode,
+  deploymentSecret,
+  emailFrom,
+  resendApiKey,
+} from "@/lib/env"
+import { signedMediaUrl } from "@/lib/media"
+import { sendAuthEmail } from "@/lib/notify"
+import { columnMeta } from "@/lib/types"
 import { addComment } from "./comments"
 import { createTicket, patchTicket } from "./tickets"
 
 function projectTokenFrom(req: Request) {
-  const url = new URL(req.url)
-  return (
-    req.headers.get("x-tesuto-project") ??
-    url.searchParams.get("token") ??
-    ""
-  ).trim()
+  return (req.headers.get("x-tesuto-project") ?? "").trim()
 }
 
 /** Resolve the project from its token, or 401 with a clear message. */
@@ -33,12 +36,12 @@ export async function widgetProject(req: Request) {
 
 /**
  * Widget requests carry two credentials: the project token (which board) as the
- * `X-Tesuto-Project` header or `?token=`, and the signed-in user's bearer token
+ * `X-Tesuto-Project` header, and the signed-in user's bearer token
  * (who) as `Authorization: Bearer`.
  */
 export async function widgetAuth(req: Request) {
   const [user, project] = await Promise.all([
-    getSessionUser(req),
+    getSessionUser(req, { scope: "widget", allowCookie: false }),
     widgetProject(req),
   ])
   if (!user) throw new HttpError("Sign in to continue", 401)
@@ -51,11 +54,9 @@ export async function widgetProjectInfo(req: Request) {
   return { id: p.id, key: p.key, name: p.name }
 }
 
-const WIDGET_USER_ID = "widget"
-
-/** Shared secret with the host app. Unset = legacy trusted-host dev mode. */
+/** Shared secret with the host app. It is mandatory for widget identity. */
 export function widgetSecret() {
-  return process.env.TESUTO_WIDGET_SECRET?.trim() || ""
+  return deploymentSecret("TESUTO_WIDGET_SECRET")
 }
 
 function verifiedHostEmail(assertion: unknown): string {
@@ -77,69 +78,31 @@ export type WidgetAuthResult =
 /**
  * Mints a widget session.
  *
- * Verified mode (TESUTO_WIDGET_SECRET set): the host proves its user with a
- * signed assertion. A remembered host→user link signs straight in; otherwise
+ * The host proves its user with a TESUTO_WIDGET_SECRET-signed assertion. A
+ * remembered host→user link signs straight in; otherwise
  * the caller gets `{ linked: false }` and must run the link flow first —
  * nobody comments until their Tesuto identity is proven.
  *
- * Legacy mode (no secret): the host's `{ name, email }` claim is trusted as
- * before — local dev only.
  */
 export async function widgetSignIn(
   req: Request,
-  input: { assertion?: string; name?: string; email?: string },
+  input: { assertion: string },
 ): Promise<WidgetAuthResult> {
   await widgetProject(req)
-
-  if (widgetSecret()) {
-    if (!input.assertion) {
-      throw new HttpError("A verified Hearth sign-in is required", 401)
-    }
-    const hostEmail = verifiedHostEmail(input.assertion)
-    const link = await prisma.widgetLink.findUnique({
-      where: { hostEmail },
-      include: { user: { select: { id: true, name: true, color: true } } },
-    })
-    if (!link?.verifiedAt) return { linked: false, hostEmail }
-    const token = await createSession(link.user.id)
-    return { linked: true, user: link.user, token }
-  }
-
-  const email = input.email?.trim().toLowerCase()
-  const name = input.name?.trim()
-
-  let user: { id: string; name: string; color: string }
-  if (email && name) {
-    const count = await prisma.user.count()
-    user = await prisma.user.upsert({
-      where: { email },
-      create: {
-        name,
-        email,
-        role: "member",
-        color: PROJECT_COLORS[count % PROJECT_COLORS.length],
-        active: true,
-      },
-      update: { name },
-      select: { id: true, name: true, color: true },
-    })
-  } else {
-    user = await prisma.user.upsert({
-      where: { id: WIDGET_USER_ID },
-      create: {
-        id: WIDGET_USER_ID,
-        name: "Widget",
-        email: "widget@tesuto.local",
-        color: "#71717a",
-        role: "member",
-        active: false,
-      },
-      update: {},
-      select: { id: true, name: true, color: true },
-    })
-  }
-  const token = await createSession(user.id)
-  return { user, token, linked: true }
+  const hostEmail = verifiedHostEmail(input.assertion)
+  const link = await prisma.widgetLink.findUnique({
+    where: { hostEmail },
+    include: {
+      user: { select: { id: true, name: true, color: true, active: true } },
+    },
+  })
+  if (!link?.verifiedAt) return { linked: false, hostEmail }
+  if (!link.user.active) throw new HttpError("This account is inactive", 403)
+  const session = await createSession(link.user.id, {
+    scope: "widget",
+    ttlMs: WIDGET_SESSION_TTL_MS,
+  })
+  return { linked: true, user: link.user, token: session.token }
 }
 
 export async function widgetSignOut(req: Request) {
@@ -152,7 +115,7 @@ const LINK_RESEND_WAIT_MS = 60 * 1000
 const LINK_MAX_ATTEMPTS = 5
 
 function hashCode(code: string) {
-  return createHash("sha256").update(code).digest("hex")
+  return createHmac("sha256", widgetSecret()).update(code).digest("hex")
 }
 
 function maskEmail(email: string) {
@@ -170,15 +133,16 @@ export async function startLink(input: { assertion?: string; email?: string }) {
   const hostEmail = verifiedHostEmail(input.assertion)
   const email = input.email?.trim().toLowerCase()
   if (!email) throw new HttpError("Email is required", 400)
+  const devCode = authDevCode()
+  if (!devCode && (!resendApiKey() || !emailFrom())) {
+    throw new HttpError("Verification email is not configured", 503)
+  }
   const target = await prisma.user.findUnique({
     where: { email },
     select: { id: true, active: true },
   })
   if (!target?.active) {
-    throw new HttpError(
-      "No active Tesuto account uses that email — ask your admin to add you first",
-      404,
-    )
+    return { ok: true as const, email: maskEmail(email) }
   }
   const existing = await prisma.widgetLink.findUnique({ where: { hostEmail } })
   if (
@@ -187,7 +151,10 @@ export async function startLink(input: { assertion?: string; email?: string }) {
   ) {
     throw new HttpError("A code was just sent — wait a minute to resend", 429)
   }
-  const code = String(randomInt(0, 1_000_000)).padStart(6, "0")
+  if (devCode && !/^\d{6}$/.test(devCode)) {
+    throw new HttpError("AUTH_DEV_CODE must contain exactly 6 digits", 503)
+  }
+  const code = devCode || String(randomInt(0, 1_000_000)).padStart(6, "0")
   await prisma.widgetLink.upsert({
     where: { hostEmail },
     create: {
@@ -208,11 +175,22 @@ export async function startLink(input: { assertion?: string; email?: string }) {
       verifiedAt: null,
     },
   })
-  await sendEmail(
-    email,
-    "Your Tesuto link code",
-    `<p>Your Tesuto verification code is: <strong style="font-size:20px;letter-spacing:4px">${code}</strong></p><p>It expires in 10 minutes. If you didn't request this, ignore the email.</p>`,
-  )
+  if (!devCode) {
+    try {
+      await sendAuthEmail(
+        email,
+        "Your Tesuto link code",
+        `<p>Your Tesuto verification code is: <strong style="font-size:20px;letter-spacing:4px">${code}</strong></p><p>It expires in 10 minutes. If you didn't request this, ignore the email.</p>`,
+      )
+    } catch (error) {
+      await prisma.widgetLink.update({
+        where: { hostEmail },
+        data: { codeHash: null, codeExpiresAt: null },
+      })
+      console.error("[widget] link email failed", error)
+      throw new HttpError("Verification email could not be sent", 503)
+    }
+  }
   return { ok: true as const, email: maskEmail(email) }
 }
 
@@ -279,11 +257,14 @@ export async function verifyLink(input: {
       attempts: 0,
     },
   })
-  const token = await createSession(target.id)
+  const session = await createSession(target.id, {
+    scope: "widget",
+    ttlMs: WIDGET_SESSION_TTL_MS,
+  })
   return {
     linked: true,
     user: { id: target.id, name: target.name, color: target.color },
-    token,
+    token: session.token,
   }
 }
 
@@ -331,6 +312,7 @@ export async function widgetIssues(
       ...(opts.scope === "all" ? { assigneeId: user.id } : {}),
     },
     orderBy: { createdAt: "desc" },
+    take: 100,
     select: {
       id: true,
       key: true,
@@ -384,8 +366,8 @@ export async function widgetIssue(req: Request, id: string) {
     priority: t.priority,
     type: t.type,
     sourceUrl: t.sourceUrl,
-    screenshotUrl: t.screenshotUrl,
-    recordingUrl: t.recordingUrl,
+    screenshotUrl: signedMediaUrl(req, t.screenshotUrl),
+    recordingUrl: signedMediaUrl(req, t.recordingUrl),
     domSnapshot: t.domSnapshot,
     createdAt: t.createdAt,
     reporter: t.reporter,
@@ -404,6 +386,7 @@ export async function widgetComments(req: Request, id: string) {
   const rows = await prisma.comment.findMany({
     where: { ticketId: id },
     orderBy: { createdAt: "asc" },
+    take: 200,
     include: { author: { select: { id: true, name: true, color: true } } },
   })
   return rows.map((c) => ({

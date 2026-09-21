@@ -3,17 +3,17 @@ import { HttpError, handler } from "@/lib/api"
 import { removeColumn, updateColumn } from "@/lib/services/columns"
 
 const PatchSchema = z.object({
-  projectId: z.string().min(1),
-  label: z.string().min(1).optional(),
-  description: z.string().nullable().optional(),
-  dot: z.string().optional(),
+  projectId: z.string().min(1).max(128),
+  label: z.string().trim().min(1).max(80).optional(),
+  description: z.string().max(500).nullable().optional(),
+  dot: z.string().max(32).optional(),
   terminal: z.boolean().optional(),
   limit: z.number().nullable().optional(),
 })
 
 const DeleteSchema = z.object({
-  projectId: z.string().min(1),
-  reassignTo: z.string().min(1),
+  projectId: z.string().min(1).max(128),
+  reassignTo: z.string().min(1).max(128),
 })
 
 export const PATCH = handler({

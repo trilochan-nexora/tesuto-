@@ -22,6 +22,12 @@ export const prisma =
   globalForDb.__tesutoPrisma ??
   new PrismaClient({ adapter: new PrismaPg(pool) })
 
+/** For one-shot scripts only; route handlers keep the shared pool alive. */
+export async function closeDatabase() {
+  await prisma.$disconnect()
+  await pool.end()
+}
+
 if (process.env.NODE_ENV !== "production") {
   globalForDb.__tesutoPool = pool
   globalForDb.__tesutoPrisma = prisma

@@ -10,23 +10,26 @@ import {
 } from "@/lib/env"
 import type { Integrations } from "@/lib/types"
 import { getSetting } from "./settings"
+import { safeTicket } from "./tickets"
 import { publicUser } from "./users"
 
 /**
- * Everything the client store needs on load, in one round trip. Screenshots
- * ride along (board cards + the detail view both show them); if inline data
- * URLs ever get heavy enough to matter, move them to blob storage.
+ * Everything the client store needs on load, in one round trip. Ticket media
+ * is represented by small authenticated URLs; binary evidence is fetched only
+ * by the cards/detail views that actually render it.
  */
 export async function loadBootstrap(me: SessionUser) {
-  const [users, projects, columns, tickets, comments, docs, integrations] =
+  const [users, projects, columns, tickets, docs, integrations] =
     await Promise.all([
       prisma.user.findMany({ orderBy: { name: "asc" } }),
       prisma.project.findMany({ orderBy: { createdAt: "asc" } }),
       prisma.column.findMany({
         orderBy: [{ projectId: "asc" }, { order: "asc" }],
       }),
-      prisma.ticket.findMany({ orderBy: { order: "asc" } }),
-      prisma.comment.findMany({ orderBy: { createdAt: "asc" } }),
+      prisma.ticket.findMany({
+        orderBy: { order: "asc" },
+        include: { _count: { select: { comments: true } } },
+      }),
       prisma.doc.findMany({ orderBy: { createdAt: "desc" } }),
       loadIntegrations(),
     ])
@@ -35,8 +38,10 @@ export async function loadBootstrap(me: SessionUser) {
     users: users.map(publicUser),
     projects,
     columns,
-    tickets,
-    comments,
+    tickets: tickets.map(({ _count, ...ticket }) => ({
+      ...safeTicket(ticket),
+      commentCount: _count.comments,
+    })),
     docs,
     integrations,
     me: publicUser(me),

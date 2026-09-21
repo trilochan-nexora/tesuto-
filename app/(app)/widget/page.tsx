@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { api } from "@/lib/api-client"
 import { useStore } from "@/lib/store"
 import {
   ANNOTATION_COLORS,
@@ -57,8 +58,7 @@ type Picked = {
 type Filed = { key: string; id: string; title: string; project: string }
 
 export default function WidgetPage() {
-  const { addTicket, resolveProjectByToken, projects, users, currentUser } =
-    useStore()
+  const { addTicket, resolveProjectByToken, projects, users } = useStore()
 
   const sandbox = projects.find((p) => p.key === "SAND")
   const [token, setToken] = useState(sandbox?.token ?? "")
@@ -101,15 +101,27 @@ export default function WidgetPage() {
   const [filed, setFiled] = useState<Filed[]>([])
   const [realLoaded, setRealLoaded] = useState(false)
 
-  function loadRealWidget() {
-    if (document.getElementById("tesuto-widget-script") || !resolved)
-      return // Hand the widget the signed-in user the way a host app does (via
-      // window.__TESUTO__) — unless we're simulating a signed-out visitor.
+  async function loadRealWidget() {
+    if (document.getElementById("tesuto-widget-script") || !resolved) return // Hand the widget a server-signed host assertion via
+    // window.__TESUTO__, unless we're simulating a signed-out visitor.
+    let assertion = ""
+    if (!notSignedIn) {
+      try {
+        assertion = (
+          await api.get<{ assertion: string }>("/widget/demo-assertion")
+        ).assertion
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Couldn't mint widget identity",
+        )
+        return
+      }
+    }
     ;(window as unknown as { __TESUTO__?: unknown }).__TESUTO__ = {
       token: resolved.token,
-      user: notSignedIn
-        ? undefined
-        : { name: currentUser.name, email: currentUser.email },
+      assertion,
     }
     const s = document.createElement("script")
     s.id = "tesuto-widget-script"
@@ -717,8 +729,7 @@ export default function WidgetPage() {
                     Sign in to Tesuto
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    File issues and comment. Dev mode: any name + email
-                    works.
+                    This playground simulates the host app's own sign-in UI.
                   </p>
                   <Input
                     autoFocus

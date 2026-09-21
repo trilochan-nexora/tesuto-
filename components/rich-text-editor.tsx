@@ -12,6 +12,7 @@ import {
   Strikethrough,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import { sanitizeRichText } from "@/lib/sanitize"
 import { cn } from "@/lib/utils"
 
 /**
@@ -44,7 +45,7 @@ export function RichTextEditor({
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const incoming = toHtml(value)
+    const incoming = sanitizeRichText(value)
     if (el.innerHTML !== incoming && document.activeElement !== el) {
       el.innerHTML = incoming
     }
@@ -157,6 +158,17 @@ export function RichTextEditor({
         contentEditable
         suppressContentEditableWarning
         onInput={emit}
+        onPaste={(event) => {
+          event.preventDefault()
+          const html = event.clipboardData.getData("text/html")
+          const text = event.clipboardData.getData("text/plain")
+          document.execCommand(
+            "insertHTML",
+            false,
+            sanitizeRichText(html || text),
+          )
+          emit()
+        }}
         onBlur={emit}
         data-placeholder={placeholder}
         className="prose-tight block w-full overflow-y-auto px-3 py-2.5 text-sm outline-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)] [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_h2]:mt-2 [&_h2]:text-base [&_h2]:font-semibold [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:rounded-md [&_pre]:bg-muted/60 [&_pre]:p-2 [&_pre]:font-mono [&_pre]:text-xs [&_ul]:list-disc [&_ul]:pl-5"
@@ -180,7 +192,7 @@ export function RichText({
         "text-[0.95rem] leading-relaxed text-foreground/90 [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_h2]:mt-3 [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-5 [&_ol]:list-decimal [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted/60 [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-xs [&_ul]:list-disc [&>*+*]:mt-2",
         className,
       )}
-      dangerouslySetInnerHTML={{ __html: toHtml(html) }}
+      dangerouslySetInnerHTML={{ __html: sanitizeRichText(html) }}
     />
   )
 }
@@ -188,17 +200,4 @@ export function RichText({
 export function isEmptyHtml(html?: string) {
   if (!html) return true
   return html.replace(/<[^>]*>/g, "").replace(/\s|&nbsp;/g, "").length === 0
-}
-
-function toHtml(value: string) {
-  if (!value) return ""
-  // Already HTML.
-  if (/<(p|div|h[1-6]|ul|ol|li|blockquote|pre|br|strong|em|a)\b/i.test(value)) {
-    return value
-  }
-  // Legacy plain text → paragraphs.
-  return value
-    .split(/\n{2,}/)
-    .map((p) => `<p>${p.replace(/\n/g, "<br>").replace(/</g, "&lt;")}</p>`)
-    .join("")
 }
