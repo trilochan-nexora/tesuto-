@@ -598,7 +598,12 @@
     issueFrom: "page", // which tab openIssue() was called from
     thread: [],
     threadTimer: null,
-    unlocked: isLocalHost(), // fab stays hidden until the corner click-gesture fires (see hotspot) — always on for a localhost host page
+    // Fab stays hidden until the corner click-gesture fires (see hotspot) —
+    // always on for a localhost host page, and also for a host that opts in
+    // via `alwaysVisible`/`data-always-visible` (a trusted internal app
+    // embedding the widget for its own staff, not a public page "in the
+    // wild" — the gesture's actual target, per the note on isLocalHost()).
+    unlocked: isLocalHost() || cfg.alwaysVisible === true || attr("always-visible") === "true",
   }
 
   const wrap = document.createElement("div")

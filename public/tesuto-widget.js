@@ -15,6 +15,9 @@
  *   user       legacy dev mode — bare { name, email } claim, no proof
  *   endpoint   POST reports here as JSON instead of the localStorage fallback
  *   shortcut   keyboard toggle, e.g. "alt+b" (default "mod+shift+b")
+ *   alwaysVisible  skip the 5-click corner reveal gesture (meant for public
+ *                  embeds "in the wild") — for a trusted internal app where
+ *                  the launcher should just be there for its own staff
  */
 
 let started = false
@@ -46,6 +49,7 @@ export function initTesutoWidget(opts = {}) {
     // the widget needs no sign-in of its own
     user: opts.user,
     shortcut: opts.shortcut,
+    alwaysVisible: opts.alwaysVisible,
   }
 
   const s = document.createElement("script")
