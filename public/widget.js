@@ -365,9 +365,11 @@
     --text:#18181b; --muted:#71717a }
 
   .fab { position: fixed; bottom: 20px; right: 20px; width: 52px; height: 52px; border-radius: 50%;
-    border: 1px solid var(--line); background: var(--bg); color: var(--text); cursor: pointer;
-    pointer-events: auto; display: grid; place-items: center; box-shadow: 0 10px 30px rgba(0,0,0,.35) }
-  .fab svg { width: 20px; height: 20px }
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); cursor: grab;
+    pointer-events: auto; display: grid; place-items: center; box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    touch-action: none; user-select: none; -webkit-user-select: none }
+  .fab.dragging { cursor: grabbing; box-shadow: 0 16px 40px rgba(0,0,0,.45) }
+  .fab svg { width: 20px; height: 20px; pointer-events: none }
 
   .panel { position: fixed; bottom: 20px; right: 20px; width: 400px; max-width: calc(100vw - 40px);
     height: 640px; max-height: calc(100vh - 40px); pointer-events: auto; display: flex; flex-direction: column;
@@ -586,10 +588,104 @@
   const fab = document.createElement("button")
   fab.className = "fab"
   fab.addEventListener("click", () => {
+    // A drag ends with a click on the same element — swallow that one.
+    if (fabDragged) {
+      fabDragged = false
+      return
+    }
     if (state.view === "collapsed") go("actions")
     else collapse()
   })
   wrap.appendChild(fab)
+
+  // Draggable launcher. Position is stored as {right, bottom} offsets so the
+  // default (CSS bottom/right = 20px) and the panel anchor share one frame of
+  // reference; null means "never moved — leave the stylesheet in charge".
+  const POS_KEY = "tesuto:widget-fab-pos"
+  const FAB_MARGIN = 20
+  const DRAG_THRESHOLD = 4 // px of movement before a press counts as a drag
+  let fabPos = null
+  let fabDrag = null
+  let fabDragged = false
+  try {
+    const raw = JSON.parse(ls.get(POS_KEY) || "null")
+    if (raw && Number.isFinite(raw.right) && Number.isFinite(raw.bottom))
+      fabPos = raw
+  } catch {}
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi))
+  function clampPos(pos, w, h) {
+    return {
+      right: clamp(pos.right, 0, window.innerWidth - w),
+      bottom: clamp(pos.bottom, 0, window.innerHeight - h),
+    }
+  }
+  function applyFabPos() {
+    if (!fabPos) {
+      fab.style.right = fab.style.bottom = ""
+      return
+    }
+    fabPos = clampPos(fabPos, fab.offsetWidth || 52, fab.offsetHeight || 52)
+    fab.style.right = fabPos.right + "px"
+    fab.style.bottom = fabPos.bottom + "px"
+  }
+  // The panel opens beside wherever the fab was left, pulled back inside the
+  // viewport so a 400×640 panel still fits when the fab sits in a far corner.
+  function placePanel() {
+    if (!fabPos) {
+      panel.style.right = panel.style.bottom = ""
+      return
+    }
+    const p = clampPos(
+      { right: fabPos.right, bottom: fabPos.bottom },
+      panel.offsetWidth + FAB_MARGIN,
+      panel.offsetHeight + FAB_MARGIN,
+    )
+    panel.style.right = Math.max(FAB_MARGIN, p.right) + "px"
+    panel.style.bottom = Math.max(FAB_MARGIN, p.bottom) + "px"
+  }
+  fab.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return
+    const r = fab.getBoundingClientRect()
+    fabDrag = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      right: window.innerWidth - r.right,
+      bottom: window.innerHeight - r.bottom,
+      moved: false,
+    }
+    try {
+      fab.setPointerCapture(e.pointerId)
+    } catch {}
+  })
+  fab.addEventListener("pointermove", (e) => {
+    if (!fabDrag || e.pointerId !== fabDrag.id) return
+    const dx = e.clientX - fabDrag.x
+    const dy = e.clientY - fabDrag.y
+    if (!fabDrag.moved) {
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+      fabDrag.moved = true
+      fab.classList.add("dragging")
+    }
+    fabPos = { right: fabDrag.right - dx, bottom: fabDrag.bottom - dy }
+    applyFabPos()
+  })
+  function endFabDrag(e) {
+    if (!fabDrag || e.pointerId !== fabDrag.id) return
+    const moved = fabDrag.moved
+    fabDrag = null
+    fab.classList.remove("dragging")
+    if (!moved) return
+    // Only a real drag suppresses the click; pointercancel fires no click.
+    fabDragged = e.type === "pointerup"
+    ls.set(POS_KEY, JSON.stringify(fabPos))
+  }
+  fab.addEventListener("pointerup", endFabDrag)
+  fab.addEventListener("pointercancel", endFabDrag)
+  window.addEventListener("resize", () => {
+    applyFabPos()
+    if (state.view !== "collapsed") placePanel()
+  })
 
   // Hidden reveal gesture: the fab stays invisible until this corner region is
   // clicked 5 times within CLICK_WINDOW_MS. Same behavior in dev and prod — no
@@ -663,7 +759,11 @@
     panel.style.display = open ? "flex" : "none"
     fab.style.display = open ? "none" : state.unlocked ? "grid" : "none"
     fab.innerHTML = I.chevU
-    if (!open) return
+    if (!open) {
+      applyFabPos()
+      return
+    }
+    placePanel()
 
     shell.innerHTML = ""
     if (state.view === "tokenprompt" || !TOKEN || state.badToken) {

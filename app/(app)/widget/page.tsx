@@ -1028,7 +1028,8 @@ export default function WidgetPage() {
             Everything above is a React simulation. This injects the actual{" "}
             <code className="rounded bg-muted px-1 py-0.5">/widget.js</code>{" "}
             onto this page — a dependency-free script that works on any site.
-            Its floating button appears bottom-right; it files straight into{" "}
+            Its floating button appears bottom-right (drag it anywhere — the
+            spot is remembered); it files straight into{" "}
             {resolved?.name ?? "the token's project"}.
           </p>
           <Button
