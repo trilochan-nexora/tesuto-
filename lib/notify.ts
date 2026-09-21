@@ -119,7 +119,9 @@ async function deliver(opts: NotifyOpts) {
     .join(" ")
   const project = t.project ? `${t.project.name}` : ""
 
-  if (await slackEnabled()) {
+  // Slack only gets assignment pings — #my-tasks is meant to tell someone
+  // "this landed on you," not double as a firehose of every ticket event.
+  if (opts.event === "assigned to" && (await slackEnabled())) {
     const text =
       `*<${ticketHref(t)}|${t.key}> ${t.title}*\n${line} · ${t.priority}` +
       (project ? ` · ${project}` : "") +
