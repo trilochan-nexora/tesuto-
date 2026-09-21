@@ -200,6 +200,16 @@ export type Integrations = {
   githubSync: IntegrationToggle
   githubProjects: IntegrationToggle
   clickup: IntegrationToggle
+  hearthReleases: IntegrationToggle
+}
+
+export type Release = {
+  id: string
+  version: string
+  repo: string
+  notesMd: string
+  releaseUrl: string
+  createdAt: string
 }
 
 export type IntegrationKey = keyof Integrations

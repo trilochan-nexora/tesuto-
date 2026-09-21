@@ -47,3 +47,8 @@ export function resendApiKey() {
 export function emailFrom() {
   return read("EMAIL_FROM")
 }
+
+/** Shared secret Hearth's CI sends as `X-Release-Secret` when posting releases. */
+export function releasesWebhookSecret() {
+  return read("HEARTH_RELEASES_SECRET")
+}

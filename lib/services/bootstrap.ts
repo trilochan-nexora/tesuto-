@@ -4,6 +4,7 @@ import {
   emailFrom,
   githubClientId,
   githubClientSecret,
+  releasesWebhookSecret,
   resendApiKey,
   slackWebhookUrl,
 } from "@/lib/env"
@@ -44,15 +45,15 @@ export async function loadBootstrap(me: SessionUser) {
 
 /** Toggle state + whether the server env can actually deliver it. */
 async function loadIntegrations(): Promise<Integrations> {
-  const [slack, email, githubSync, githubProjects, clickup] = await Promise.all(
-    [
+  const [slack, email, githubSync, githubProjects, clickup, hearthReleases] =
+    await Promise.all([
       getSetting("integration.slack"),
       getSetting("integration.email"),
       getSetting("integration.github_sync"),
       getSetting("integration.github_projects_import"),
       getSetting("integration.clickup_import"),
-    ],
-  )
+      getSetting("integration.hearth_releases"),
+    ])
   return {
     slack: { enabled: slack, available: Boolean(slackWebhookUrl()) },
     email: {
@@ -65,5 +66,9 @@ async function loadIntegrations(): Promise<Integrations> {
       available: Boolean(githubClientId() && githubClientSecret()),
     },
     clickup: { enabled: clickup, available: true },
+    hearthReleases: {
+      enabled: hearthReleases,
+      available: Boolean(releasesWebhookSecret()),
+    },
   }
 }

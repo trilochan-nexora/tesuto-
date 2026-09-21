@@ -9,6 +9,7 @@ import {
   NotebookPen,
   Plug,
   Plus,
+  Rocket,
   Settings,
   Shield,
   Users,
@@ -42,6 +43,7 @@ const mainNav = [
 
 const toolsNav = [
   { title: "Widget", href: "/widget", icon: Plug },
+  { title: "Releases", href: "/releases", icon: Rocket },
   { title: "Users", href: "/team", icon: Shield },
   { title: "Settings", href: "/settings", icon: Settings },
 ]

@@ -67,6 +67,7 @@ const DEFAULT_INTEGRATIONS: Integrations = {
   githubSync: { enabled: true, available: true },
   githubProjects: { enabled: true, available: true },
   clickup: { enabled: true, available: true },
+  hearthReleases: { enabled: true, available: true },
 }
 
 /** Client-side toggle name → server setting key. */
@@ -76,6 +77,7 @@ const SETTING_KEYS: Record<IntegrationKey, string> = {
   githubSync: "integration.github_sync",
   githubProjects: "integration.github_projects_import",
   clickup: "integration.clickup_import",
+  hearthReleases: "integration.hearth_releases",
 }
 
 type StoreState = {

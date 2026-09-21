@@ -13,6 +13,7 @@ export const INTEGRATION_KEYS = [
   "integration.github_sync",
   "integration.github_projects_import",
   "integration.clickup_import",
+  "integration.hearth_releases",
 ] as const
 
 export type IntegrationKey = (typeof INTEGRATION_KEYS)[number]

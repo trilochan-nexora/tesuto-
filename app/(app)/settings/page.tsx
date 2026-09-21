@@ -50,6 +50,13 @@ const INTEGRATION_ROWS: {
     description:
       "Import ClickUp lists as new Tesuto projects (API token pasted per import, never stored).",
   },
+  {
+    key: "hearthReleases",
+    label: "Hearth release notes",
+    description:
+      "Show prod API releases posted in from Hearth's CI on the Releases page.",
+    requiresEnv: "HEARTH_RELEASES_SECRET",
+  },
 ]
 
 export default function SettingsPage() {
