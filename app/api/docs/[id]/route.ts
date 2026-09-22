@@ -3,10 +3,10 @@ import { handler } from "@/lib/api"
 import { deleteDoc, updateDoc } from "@/lib/services/docs"
 
 const PatchSchema = z.object({
-  title: z.string().optional(),
-  icon: z.string().optional(),
-  content: z.string().optional(),
-  projectId: z.string().nullable().optional(),
+  title: z.string().trim().min(1).max(200).optional(),
+  icon: z.string().max(50).optional(),
+  content: z.string().max(500_000).optional(),
+  projectId: z.string().min(1).max(128).nullable().optional(),
 })
 
 export const PATCH = handler({

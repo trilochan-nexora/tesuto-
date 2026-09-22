@@ -3,34 +3,38 @@ import { handler } from "@/lib/api"
 import {
   zAnnotation,
   zContext,
+  zDescription,
   zDomSnapshot,
+  zHttpUrl,
+  zId,
   zPriority,
   zRecording,
   zScreenshot,
+  zTitle,
   zType,
 } from "@/lib/schemas"
 import { createTicket, listTickets } from "@/lib/services/tickets"
 
 const FiltersSchema = z.object({
-  projectId: z.string().optional(),
-  status: z.string().optional(),
-  assigneeId: z.string().optional(),
-  parentId: z.string().optional(),
+  projectId: zId.optional(),
+  status: zId.optional(),
+  assigneeId: zId.optional(),
+  parentId: zId.optional(),
 })
 
 const NewTicketSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().optional(),
-  projectId: z.string(),
+  title: zTitle,
+  description: zDescription.optional(),
+  projectId: zId,
   priority: zPriority,
   type: zType,
-  assigneeId: z.string().optional(),
-  parentId: z.string().optional(),
-  status: z.string().optional(),
-  sourceUrl: z.string().optional(),
+  assigneeId: zId.optional(),
+  parentId: zId.optional(),
+  status: zId.optional(),
+  sourceUrl: zHttpUrl.optional(),
   screenshotUrl: zScreenshot.optional(),
   recordingUrl: zRecording.optional(),
-  annotations: z.array(zAnnotation).optional(),
+  annotations: z.array(zAnnotation).max(200).optional(),
   domSnapshot: zDomSnapshot.optional(),
   context: zContext.optional(),
 })

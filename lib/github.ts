@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 import { HttpError } from "@/lib/api"
-import { githubClientId, githubClientSecret } from "@/lib/env"
+import { appSecret, githubClientId, githubClientSecret } from "@/lib/env"
 
 /**
  * GitHub OAuth + REST wrapper. Each teammate connects their own account;
@@ -24,7 +24,7 @@ export const GITHUB_SCOPES = "repo read:project read:org"
 export const GITHUB_CALLBACK_PATH = "/api/github/callback"
 
 function stateSecret() {
-  const secret = process.env.APP_SECRET?.trim()
+  const secret = appSecret()
   if (!secret) throw new Error("Missing env var APP_SECRET")
   return secret
 }

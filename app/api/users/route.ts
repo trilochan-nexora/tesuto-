@@ -4,10 +4,10 @@ import { zRole } from "@/lib/schemas"
 import { createUser, listUsers } from "@/lib/services/users"
 
 const NewUserSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
+  name: z.string().trim().min(1).max(100),
+  email: z.string().trim().email().max(254),
   role: zRole,
-  title: z.string().optional(),
+  title: z.string().trim().max(100).optional(),
 })
 
 export const GET = handler({ run: () => listUsers() })

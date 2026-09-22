@@ -9,12 +9,10 @@
  *   import { initTesutoWidget } from ".../tesuto-widget.js"
  *   initTesutoWidget({ token: "tsto_pk_…" })
  *
- * A side panel. Identity comes from the host app two ways: verified mode
- * takes a short-lived signed assertion minted by the host server (the widget
- * proves nothing itself — Tesuto verifies the signature), and an unknown
- * host user links a Tesuto account once via an emailed code, remembered
- * after that. Legacy dev mode takes a bare name/email claim. Either way the
- * Tesuto session is separate from the host session: the footer disconnects
+ * A side panel. Identity comes from a short-lived signed assertion minted by
+ * the host server (the widget proves nothing itself — Tesuto verifies the
+ * signature), and an unknown host user links a Tesuto account once via an
+ * emailed code. The Tesuto session is separate from the host session: the footer disconnects
  * only Tesuto, and disconnecting lands on a Tesuto sign-in page.
  * Comment on an element or drop a pin, browse this page's issues or your own
  * queue, open an issue to chat and change its priority / status.
@@ -49,16 +47,9 @@
   const attr = (n) => (script && script.getAttribute("data-" + n)) || ""
   const PT_KEY = "tesuto:widget-project-token"
   let TOKEN = lsGet(PT_KEY) || cfg.token || attr("project-token") || ""
-  // The host app hands the widget its signed-in user, so there's no sign-in
-  // screen. `{ name, email }` or nothing (→ shared "Widget" system user).
-  const CFG_USER =
-    cfg.user && cfg.user.name && cfg.user.email
-      ? { name: String(cfg.user.name), email: String(cfg.user.email) }
-      : null
-  // Verified mode: the host passes a signed identity assertion minted by its
-  // own server (HMAC, short expiry) instead of a bare name/email claim.
+  // The host passes a signed identity assertion minted by its own server.
   // Tesuto proves the signature before trusting the identity — see
-  // lib/assertion.ts. Unset = legacy trusted-host dev mode.
+  // lib/assertion.ts. Without it the widget remains unavailable.
   const CFG_ASSERTION =
     (typeof cfg.assertion === "string" && cfg.assertion) ||
     attr("assertion") ||
@@ -111,7 +102,6 @@
     .toLowerCase()
     .split("+")
 
-  const TK_KEY = "tesuto:widget-token"
   const THEME_KEY = "tesuto:widget-theme"
   const ls = { get: lsGet, set: lsSet, del: lsDel }
 
@@ -177,7 +167,9 @@
   }
 
   /* --------------------------------- api ---------------------------------- */
-  let userToken = ls.get(TK_KEY)
+  // Deliberately memory-only: a page script cannot recover a previous widget
+  // bearer token from localStorage. A fresh short session is minted on reload.
+  let userToken = null
 
   async function apiRaw(method, path, body) {
     const res = await fetch(API + path, {
@@ -199,7 +191,6 @@
       // session expired (not a bad project token) — re-mint silently
       if (userToken && !/token/i.test(msg)) {
         userToken = null
-        ls.del(TK_KEY)
         state.me = null
         void reconnect()
         throw new Error("unauthorized")
@@ -565,6 +556,28 @@
       .join("")
       .toUpperCase()
   }
+  function safeColor(value) {
+    return /^#[0-9a-f]{6}$/i.test(String(value || "")) ? value : PURPLE
+  }
+  function safeHttpUrl(value) {
+    try {
+      const url = new URL(String(value || ""))
+      return url.protocol === "http:" || url.protocol === "https:"
+        ? url.href
+        : ""
+    } catch {
+      return ""
+    }
+  }
+  function safeImageData(value) {
+    const source = String(value || "")
+    return /^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(source)
+      ? source
+      : ""
+  }
+  function safeImageUrl(value) {
+    return safeImageData(value) || safeHttpUrl(value)
+  }
   function ago(iso) {
     const s = Math.max(1, (Date.now() - new Date(iso).getTime()) / 1000)
     if (s < 60) return "now"
@@ -581,7 +594,6 @@
     authError: false,
     noUser: false, // host app didn't identify a user → can't file anything
     manualDisconnect: false, // user killed the Tesuto session; don't auto-reconnect
-    manualCreds: null, // legacy dev-mode sign-in form values { name, email }
     link: null, // { hostEmail, step: "email"|"code", email, err } while linking
     project: null,
     me: null,
@@ -883,7 +895,7 @@
     if (idColor) {
       const d = document.createElement("div")
       d.className = "idico"
-      d.style.background = idColor
+      d.style.background = safeColor(idColor)
       d.textContent = initials(title)
       row.appendChild(d)
     }
@@ -951,7 +963,6 @@
       await apiRaw("DELETE", "/widget/auth")
     } catch {}
     userToken = null
-    ls.del(TK_KEY)
     state.me = null
     state.view = "signin"
     render()
@@ -996,40 +1007,10 @@
       })
       return
     }
-    // Legacy dev mode: sign in as any claimed identity.
-    const pre = state.manualCreds || CFG_USER || { name: "", email: "" }
-    const form = document.createElement("form")
-    form.className = "form"
-    form.innerHTML = `
-      <p class="note" style="margin-top:0">Sign in to Tesuto to file issues and comment. (Dev mode: any name + email works.)</p>
-      <label>Name</label>
-      <input id="si-name" autocomplete="name" placeholder="Your name" value="${escapeHtml(
-        pre.name || "",
-      )}" />
-      <label>Email</label>
-      <input id="si-email" type="email" autocomplete="email" placeholder="you@company.com" value="${escapeHtml(
-        pre.email || "",
-      )}" />
-      <div class="btnrow"><button class="btn primary" type="submit" id="si-go">Sign in</button></div>`
-    shell.appendChild(form)
-    form.querySelector("#si-name").focus()
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault()
-      const name = form.querySelector("#si-name").value.trim()
-      const email = form.querySelector("#si-email").value.trim()
-      if (!name || !email) return
-      const btn = form.querySelector("#si-go")
-      btn.disabled = true
-      btn.textContent = "Signing in…"
-      state.manualCreds = { name, email }
-      state.manualDisconnect = false
-      render()
-      if (await authSilently()) {
-        state.view = "actions"
-        await boot()
-      }
-      render()
-    })
+    const body = document.createElement("div")
+    body.className = "body"
+    body.innerHTML = `<div class="empty">This host must provide a signed Tesuto identity assertion.</div>`
+    shell.appendChild(body)
   }
 
   /* ---------------------------- identity ------------------------------ */
@@ -1037,8 +1018,6 @@
   // remembered host→user link signs straight in as the linked Tesuto user;
   // otherwise auth answers `{ linked: false }` and the link flow must run
   // first — nobody files or comments on an unproven identity.
-  // Legacy mode (no assertion configured): the host's name/email claim is
-  // trusted as before. Local dev only.
   async function authSilently() {
     if (state.manualDisconnect) return false
     if (CFG_ASSERTION) {
@@ -1046,7 +1025,6 @@
         const r = await apiPost("/widget/auth", { assertion: CFG_ASSERTION })
         if (r && r.linked === false) {
           userToken = null
-          ls.del(TK_KEY)
           state.noUser = false
           state.link = {
             hostEmail: r.hostEmail || "",
@@ -1058,7 +1036,6 @@
           return false
         }
         userToken = r.token
-        ls.set(TK_KEY, r.token)
         state.noUser = false
         state.link = null
         const idn = decodeAssertion()
@@ -1073,31 +1050,9 @@
         return false
       }
     }
-    const creds = state.manualCreds || CFG_USER
-    if (!creds) {
-      userToken = null
-      ls.del(TK_KEY)
-      state.noUser = true
-      return false
-    }
-    try {
-      const r = await apiPost("/widget/auth", {
-        name: creds.name,
-        email: creds.email,
-      })
-      userToken = r.token
-      ls.set(TK_KEY, r.token)
-      state.noUser = false
-      saveIdentity(creds.email, r.user.name)
-      return true
-    } catch (err) {
-      if (err && /token/i.test(err.message || "")) {
-        state.badToken = true
-      } else {
-        state.authError = true
-      }
-      return false
-    }
+    userToken = null
+    state.noUser = true
+    return false
   }
 
   /* ------------------------- link Tesuto account ------------------------ */
@@ -1184,7 +1139,6 @@
             code,
           })
           userToken = r.token
-          ls.set(TK_KEY, r.token)
           const idn = decodeAssertion()
           saveIdentity((idn && idn.email) || "", r.user.name)
           state.link = null
@@ -1444,22 +1398,25 @@
     const foot = document.createElement("div")
     foot.className = "foot"
 
+    const screenshotUrl = safeImageUrl(it.screenshotUrl)
+    const sourceUrl = safeHttpUrl(it.sourceUrl)
+
     const me = document.createElement("div")
     me.className = "metaedit"
     me.innerHTML = `
       ${
-        it.screenshotUrl
+        screenshotUrl
           ? `<div class="r"><label>Shot</label><img class="shot" alt="screenshot" src="${escapeHtml(
-              it.screenshotUrl,
+              screenshotUrl,
             )}" /></div>`
           : ""
       }
       ${
-        it.sourceUrl
+        sourceUrl
           ? `<div class="r"><label>Page</label><a href="${escapeHtml(
-              it.sourceUrl,
+              sourceUrl,
             )}" target="_blank" rel="noopener noreferrer">${escapeHtml(
-              trimUrl(it.sourceUrl),
+              trimUrl(sourceUrl),
             )}</a></div>`
           : ""
       }
@@ -1479,7 +1436,7 @@
         <select id="ie-status">${state.columns
           .map(
             (c) =>
-              `<option value="${c.id}"${c.id === it.status ? " selected" : ""}>${escapeHtml(
+              `<option value="${escapeHtml(c.id)}"${c.id === it.status ? " selected" : ""}>${escapeHtml(
                 c.label,
               )}</option>`,
           )
@@ -1487,9 +1444,7 @@
     foot.appendChild(me)
     const shot = me.querySelector(".shot")
     if (shot) {
-      shot.addEventListener("click", () =>
-        window.open(it.screenshotUrl, "_blank"),
-      )
+      shot.addEventListener("click", () => window.open(screenshotUrl, "_blank"))
       shot.addEventListener("error", () => {
         const r = shot.closest(".r")
         if (r) r.remove()
@@ -1550,8 +1505,8 @@
     d.innerHTML = `<span class="bub">${escapeHtml(body)}</span>
       <span class="by">${
         author
-          ? `<span class="av" style="background:${author.color || PURPLE}">${initials(
-              author.name,
+          ? `<span class="av" style="background:${safeColor(author.color)}">${escapeHtml(
+              initials(author.name),
             )}</span>${escapeHtml(author.name)} · `
           : ""
       }${ago(createdAt)}</span>`

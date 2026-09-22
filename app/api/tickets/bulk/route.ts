@@ -4,8 +4,8 @@ import { bulkMove, deleteTickets } from "@/lib/services/tickets"
 
 const BulkSchema = z.object({
   action: z.enum(["move", "delete"]),
-  ids: z.array(z.string()).min(1),
-  status: z.string().optional(),
+  ids: z.array(z.string().min(1).max(128)).min(1).max(500),
+  status: z.string().min(1).max(128).optional(),
 })
 
 export const POST = handler({

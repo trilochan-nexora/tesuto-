@@ -1,8 +1,14 @@
+import { randomUUID } from "node:crypto"
 import { HttpError } from "@/lib/api"
 import { decryptToken } from "@/lib/crypto"
 import { prisma } from "@/lib/db"
 import { appUrl } from "@/lib/env"
 import { createGithubIssue } from "@/lib/github"
+import {
+  deleteStoredMedia,
+  type PreparedMedia,
+  prepareMedia,
+} from "@/lib/media"
 import {
   type NotifyTicket,
   notifyTicketAssigned,
@@ -10,6 +16,7 @@ import {
   notifyTicketResolved,
   notifyTicketUnassigned,
 } from "@/lib/notify"
+import { sanitizeRichText } from "@/lib/sanitize"
 import type { TicketEvent } from "@/lib/types"
 import { DEFAULT_COLUMNS } from "@/lib/types"
 import { Prisma } from "@/prisma/generated/client"
@@ -70,8 +77,8 @@ export type TicketFilters = {
   parentId?: string
 }
 
-export function listTickets(filters: TicketFilters = {}) {
-  return prisma.ticket.findMany({
+export async function listTickets(filters: TicketFilters = {}) {
+  const tickets = await prisma.ticket.findMany({
     where: {
       projectId: filters.projectId,
       status: filters.status,
@@ -80,12 +87,24 @@ export function listTickets(filters: TicketFilters = {}) {
     },
     orderBy: { order: "asc" },
   })
+  return tickets.map(safeTicket)
+}
+
+export function safeTicket<T extends { description: string | null }>(
+  ticket: T,
+) {
+  return {
+    ...ticket,
+    description: ticket.description
+      ? sanitizeRichText(ticket.description)
+      : ticket.description,
+  }
 }
 
 export async function getTicket(id: string) {
   const ticket = await prisma.ticket.findUnique({ where: { id } })
   if (!ticket) throw new HttpError("Ticket not found", 404)
-  return ticket
+  return safeTicket(ticket)
 }
 
 export function childrenOf(parentId: string) {
@@ -119,7 +138,35 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
   if (!project) throw new HttpError("Project not found", 404)
 
   const iso = new Date()
+  const ticketId = randomUUID()
+  const media: PreparedMedia[] = []
+  try {
+    const screenshot = await prepareMedia(
+      input.screenshotUrl,
+      "screenshot",
+      ticketId,
+    )
+    if (screenshot) media.push(screenshot)
+    const recording = await prepareMedia(
+      input.recordingUrl,
+      "recording",
+      ticketId,
+    )
+    if (recording) media.push(recording)
+  } catch (error) {
+    await deleteStoredMedia(media)
+    throw error
+  }
+  const screenshot = media.find((item) => item.kind === "screenshot")
+  const recording = media.find((item) => item.kind === "recording")
   const status = input.status ?? "backlog"
+  let terminal: boolean
+  try {
+    terminal = await isTerminal(project.id, status)
+  } catch (error) {
+    await deleteStoredMedia(media)
+    throw error
+  }
   const events: TicketEvent[] = [
     { at: iso.toISOString(), kind: "created", actorId },
   ]
@@ -135,7 +182,7 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
   const data = {
     projectId: project.id,
     title: input.title,
-    description: input.description || null,
+    description: input.description ? sanitizeRichText(input.description) : null,
     status,
     priority: input.priority,
     type: input.type,
@@ -144,54 +191,69 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
     assignedAt: input.assigneeId ? iso : null,
     parentId: input.parentId ?? null,
     sourceUrl: input.sourceUrl ?? null,
-    screenshotUrl: input.screenshotUrl ?? null,
-    recordingUrl: input.recordingUrl ?? null,
+    screenshotUrl: screenshot?.url ?? null,
+    recordingUrl: recording?.url ?? null,
     annotations: (input.annotations ?? undefined) as Prisma.InputJsonValue,
     domSnapshot: (input.domSnapshot ?? undefined) as Prisma.InputJsonValue,
     context: (input.context ?? undefined) as Prisma.InputJsonValue,
-    resolvedAt: (await isTerminal(project.id, status)) ? iso : null,
+    resolvedAt: terminal ? iso : null,
     order: -Date.now(),
     events: events as unknown as Prisma.InputJsonValue,
   }
 
-  // key generation can race two concurrent creates for the same project;
-  // @@unique([projectId, key]) rejects the loser, so retry once.
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const keys = await prisma.ticket.findMany({
-      where: { projectId: project.id },
-      select: { key: true },
-    })
-    try {
-      const ticket = await prisma.ticket.create({
-        data: {
-          ...data,
-          key: nextKey(
-            project.key,
-            keys.map((k) => k.key),
-          ),
-        },
+  let committed = false
+  try {
+    // key generation can race two concurrent creates for the same project;
+    // @@unique([projectId, key]) rejects the loser, so retry once.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const keys = await prisma.ticket.findMany({
+        where: { projectId: project.id },
+        select: { key: true },
       })
-      notifyTicketCreated(
-        {
-          id: ticket.id,
-          key: ticket.key,
-          title: ticket.title,
-          priority: ticket.priority,
-          sourceUrl: ticket.sourceUrl,
-          assigneeId: ticket.assigneeId,
-          project: { name: project.name, key: project.key },
-        },
-        actorId,
-      )
-      return ticket
-    } catch (err) {
-      if (attempt === 0 && (err as { code?: string }).code === "P2002") {
-        continue
+      try {
+        const ticket = await prisma.$transaction(async (tx) => {
+          const created = await tx.ticket.create({
+            data: {
+              id: ticketId,
+              ...data,
+              key: nextKey(
+                project.key,
+                keys.map((k) => k.key),
+              ),
+            },
+          })
+          if (media.length) {
+            await tx.mediaObject.createMany({
+              data: media.map(({ url: _url, ...item }) => item),
+            })
+          }
+          return created
+        })
+        committed = true
+        notifyTicketCreated(
+          {
+            id: ticket.id,
+            key: ticket.key,
+            title: ticket.title,
+            priority: ticket.priority,
+            sourceUrl: ticket.sourceUrl,
+            assigneeId: ticket.assigneeId,
+            project: { name: project.name, key: project.key },
+          },
+          actorId,
+        )
+        return ticket
+      } catch (err) {
+        if (attempt === 0 && (err as { code?: string }).code === "P2002") {
+          continue
+        }
+        throw err
       }
-      throw err
     }
+    throw new HttpError("Could not allocate a ticket key", 409)
+  } finally {
+    if (!committed) await deleteStoredMedia(media)
   }
-  throw new HttpError("Could not allocate a ticket key", 409)
 }
 
 export type TicketPatch = {
@@ -223,7 +285,11 @@ export async function patchTicket(
   const data: Prisma.TicketUpdateInput = {}
 
   if (patch.title !== undefined) data.title = patch.title
-  if (patch.description !== undefined) data.description = patch.description
+  if (patch.description !== undefined) {
+    data.description = patch.description
+      ? sanitizeRichText(patch.description)
+      : patch.description
+  }
   if (patch.priority !== undefined) data.priority = patch.priority
   if (patch.type !== undefined) data.type = patch.type
   if (patch.order !== undefined) data.order = patch.order
@@ -376,9 +442,14 @@ export async function bulkMove(ids: string[], status: string, actorId: string) {
 }
 
 export async function deleteTickets(ids: string[]) {
+  const media = await prisma.mediaObject.findMany({
+    where: { ticketId: { in: ids } },
+    select: { storageKey: true },
+  })
   const { count } = await prisma.ticket.deleteMany({
     where: { id: { in: ids } },
   })
+  await deleteStoredMedia(media)
   return { deleted: count }
 }
 

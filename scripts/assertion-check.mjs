@@ -17,7 +17,7 @@ const SECRET = "test-secret-long-enough-for-hmac"
 const payload = {
   email: "sam@hearth.test",
   name: "Sam",
-  exp: Math.floor(Date.now() / 1000) + 600,
+  exp: Math.floor(Date.now() / 1000) + 240,
 }
 
 const token = signAssertion(payload, SECRET)
@@ -36,6 +36,12 @@ const expired = signAssertion(
   SECRET,
 )
 ok("expired rejects", verifyAssertion(expired, SECRET) === null)
+
+const tooLong = signAssertion(
+  { ...payload, exp: Math.floor(Date.now() / 1000) + 600 },
+  SECRET,
+)
+ok("overlong lifetime rejects", verifyAssertion(tooLong, SECRET) === null)
 
 ok("garbage rejects", verifyAssertion("not-a-token", SECRET) === null)
 ok("missing secret rejects", verifyAssertion(token, "") === null)

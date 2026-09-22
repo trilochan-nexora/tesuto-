@@ -21,6 +21,8 @@ export type AssertionPayload = {
   exp: number
 }
 
+const MAX_ASSERTION_TTL_SECONDS = 5 * 60
+
 export function signAssertion(
   payload: AssertionPayload,
   secret: string,
@@ -49,7 +51,12 @@ export function verifyAssertion(
       Buffer.from(body, "base64url").toString("utf8"),
     ) as Partial<AssertionPayload>
     if (!payload.email || typeof payload.email !== "string") return null
-    if (typeof payload.exp !== "number" || payload.exp * 1000 < Date.now()) {
+    const now = Math.floor(Date.now() / 1000)
+    if (
+      typeof payload.exp !== "number" ||
+      payload.exp < now ||
+      payload.exp > now + MAX_ASSERTION_TTL_SECONDS
+    ) {
       return null
     }
     return {

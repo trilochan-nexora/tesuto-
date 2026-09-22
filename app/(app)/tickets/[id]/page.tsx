@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
-import { use, useState } from "react"
+import { use, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { AppHeader } from "@/components/app-header"
 import { GithubIcon } from "@/components/icons"
@@ -72,6 +72,8 @@ export default function TicketDetailPage({
     columns: allColumns,
     childrenOf,
     commentsFor,
+    loadComments,
+    loadedCommentTicketIds,
     addComment,
     updateTicket,
     moveTicket,
@@ -90,6 +92,14 @@ export default function TicketDetailPage({
   const [descDraft, setDescDraft] = useState("")
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState("")
+  const [commentsError, setCommentsError] = useState(false)
+
+  useEffect(() => {
+    if (ticket && !loadedCommentTicketIds.includes(ticket.id)) {
+      setCommentsError(false)
+      void loadComments(ticket.id).catch(() => setCommentsError(true))
+    }
+  }, [loadComments, ticket])
 
   if (!ticket) notFound()
 
@@ -100,6 +110,7 @@ export default function TicketDetailPage({
   const subtickets = childrenOf(ticket.id)
   const subDone = subtickets.filter((t) => !!t.resolvedAt).length
   const thread = commentsFor(ticket.id)
+  const commentsLoaded = loadedCommentTicketIds.includes(ticket.id)
   const ctx = ticket.context
   const events = ticket.events ?? []
 
@@ -428,7 +439,27 @@ export default function TicketDetailPage({
                 value="discussion"
                 className="flex flex-col gap-5 pt-5"
               >
-                {thread.length === 0 ? (
+                {commentsError ? (
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    Comments couldn't load.
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCommentsError(false)
+                        void loadComments(ticket.id).catch(() =>
+                          setCommentsError(true),
+                        )
+                      }}
+                    >
+                      Try again
+                    </Button>
+                  </div>
+                ) : !commentsLoaded ? (
+                  <p className="text-sm text-muted-foreground">
+                    Loading comments…
+                  </p>
+                ) : thread.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     No comments yet. Add the first note about this ticket.
                   </p>

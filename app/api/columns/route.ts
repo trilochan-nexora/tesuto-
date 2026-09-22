@@ -2,13 +2,15 @@ import { z } from "zod"
 import { handler } from "@/lib/api"
 import { createColumn, listColumns } from "@/lib/services/columns"
 
-const ListColumnsSchema = z.object({ projectId: z.string().min(1).optional() })
+const ListColumnsSchema = z.object({
+  projectId: z.string().min(1).max(128).optional(),
+})
 
 const NewColumnSchema = z.object({
-  projectId: z.string().min(1),
-  label: z.string().min(1),
-  description: z.string().optional(),
-  dot: z.string().optional(),
+  projectId: z.string().min(1).max(128),
+  label: z.string().trim().min(1).max(80),
+  description: z.string().max(500).optional(),
+  dot: z.string().max(32).optional(),
 })
 
 export const GET = handler({

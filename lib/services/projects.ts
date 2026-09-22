@@ -1,5 +1,7 @@
 import { HttpError } from "@/lib/api"
 import { prisma } from "@/lib/db"
+import { deleteStoredMedia } from "@/lib/media"
+import { sanitizeRichText } from "@/lib/sanitize"
 import { makeProjectToken } from "@/lib/tokens"
 import type { TicketEvent } from "@/lib/types"
 import { COLUMN_DOTS, DEFAULT_COLUMNS, PROJECT_COLORS } from "@/lib/types"
@@ -74,7 +76,12 @@ export async function createProject(input: {
 export async function deleteProject(id: string) {
   const project = await prisma.project.findUnique({ where: { id } })
   if (!project) throw new HttpError("Project not found", 404)
+  const media = await prisma.mediaObject.findMany({
+    where: { ticket: { projectId: id } },
+    select: { storageKey: true },
+  })
   await prisma.project.delete({ where: { id } })
+  await deleteStoredMedia(media)
   return { deleted: id }
 }
 
@@ -193,7 +200,7 @@ export async function importProject(
           return {
             key: `${key}-${i + 1}`,
             title: issue.title,
-            description: issue.body ?? null,
+            description: issue.body ? sanitizeRichText(issue.body) : null,
             status: target.id,
             priority: issue.priority,
             type: issue.type,
