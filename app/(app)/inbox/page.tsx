@@ -47,7 +47,7 @@ const FILTER_LABEL: Record<Filter, string> = {
 // Saved inbox views are a per-device convenience (localStorage), validated on
 // read so a stale or hand-edited entry can't break the page.
 type SavedView = { id: string; name: string; filter: Filter; query: string }
-const VIEWS_KEY = "tesuto:inbox-views"
+const VIEWS_KEY = "tesuto:inbox-views:v1"
 function readViews(): SavedView[] {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(VIEWS_KEY) ?? "[]")
@@ -78,6 +78,8 @@ function writeViews(views: SavedView[]) {
 }
 
 const PER_PAGE = 20
+
+const isOpen = (t: { resolvedAt?: string }) => !t.resolvedAt
 
 const STATUS_RANK = new Map(
   DEFAULT_COLUMNS.map((c, i) => [
@@ -115,8 +117,6 @@ export default function InboxPage() {
     setViews(next)
     writeViews(next)
   }
-
-  const isOpen = (t: { resolvedAt?: string }) => !t.resolvedAt
 
   const stats = useMemo(() => {
     const open = tickets.filter(isOpen).length
