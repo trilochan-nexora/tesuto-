@@ -16,6 +16,11 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  isSoundEnabled,
+  playChime,
+  setSoundEnabled,
+} from "@/lib/notification-sound"
 import { useStore } from "@/lib/store"
 import { type IntegrationKey, ROLE_META } from "@/lib/types"
 import { cn, initials } from "@/lib/utils"
@@ -94,6 +99,9 @@ export default function SettingsPage() {
     isAdmin,
   } = useStore()
 
+  // Read after mount: localStorage isn't available during SSR.
+  const [soundOn, setSoundOn] = useState(true)
+  useEffect(() => setSoundOn(isSoundEnabled()), [])
   const [name, setName] = useState(currentUser.name)
   const [title, setTitle] = useState(currentUser.title ?? "")
   const [bio, setBio] = useState(currentUser.bio ?? "")
@@ -208,9 +216,35 @@ export default function SettingsPage() {
                 </Button>
               </div>
               <p className="text-sm text-muted-foreground">
-                Tesuto signs you in with the shared company session — there is
-                no separate password to manage.
+                There&apos;s no password — you sign in with a one-time code
+                emailed to {currentUser.email}.
               </p>
+            </div>
+
+            <div className="flex items-center gap-4 border-t pt-6">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="font-medium">Notification sound</span>
+                <span className="text-sm text-muted-foreground">
+                  A short chime when someone comments on, assigns, or moves one
+                  of your tickets. Saved for this device only.
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => playChime({ force: true })}
+              >
+                Test
+              </Button>
+              <Switch
+                aria-label="Notification sound"
+                checked={soundOn}
+                onCheckedChange={(on) => {
+                  setSoundOn(on)
+                  setSoundEnabled(on)
+                  if (on) playChime({ force: true })
+                }}
+              />
             </div>
 
             <div className="border-t pt-6">

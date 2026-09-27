@@ -2,6 +2,7 @@
 
 import { MoonIcon, SunIcon } from "@phosphor-icons/react"
 import { useTheme } from "next-themes"
+import { NotificationBell } from "@/components/notification-bell"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -34,6 +35,7 @@ export function AppHeader({
 
       <div className="ml-auto flex items-center gap-2">
         {children}
+        <NotificationBell />
         <Button
           variant="ghost"
           size="icon"

@@ -23,6 +23,8 @@ model User {
   bio             String?
   active          Boolean  @default(true)
   githubConnected Boolean  @default(false) @map("github_connected")
+  /// Everything in the notification feed at or before this is "read".
+  notificationsSeenAt DateTime? @map("notifications_seen_at")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 

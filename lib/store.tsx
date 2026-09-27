@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { toast } from "sonner"
 import { create } from "zustand"
 import { ApiError, api, setUnauthorizedHandler, stripNull } from "./api-client"
+import { playChime } from "./notification-sound"
 import {
   type Column,
   type Comment,
@@ -11,6 +12,7 @@ import {
   type Doc,
   type IntegrationKey,
   type Integrations,
+  type NotificationFeed,
   type IssueType,
   type Project,
   type Sprint,
@@ -49,6 +51,7 @@ type Bootstrap = {
   tickets: Ticket[]
   docs: Doc[]
   integrations: Integrations
+  notifications?: NotificationFeed
   me: User
 }
 
@@ -98,6 +101,10 @@ type StoreState = {
   /** Integration toggles (Settings → Integrations, admin-editable). */
   integrations: Integrations
   updateIntegration: (key: IntegrationKey, enabled: boolean) => void
+
+  /** In-app notification feed (comments, assignments, status on my tickets). */
+  notifications: NotificationFeed
+  markNotificationsSeen: () => void
 
   getUser: (id?: string) => User | undefined
   getProject: (id?: string) => Project | undefined
@@ -247,6 +254,7 @@ export const useStore = create<StoreState>((set, get) => {
     isAdmin: false,
     githubConnected: false,
     integrations: DEFAULT_INTEGRATIONS,
+    notifications: { items: [] },
     _meId: null,
     _lastLoad: 0,
 
@@ -297,6 +305,7 @@ export const useStore = create<StoreState>((set, get) => {
         tickets: b.tickets,
         docs: b.docs,
         integrations: b.integrations ?? DEFAULT_INTEGRATIONS,
+        notifications: b.notifications ?? { items: [] },
         authState: "authed" as const,
         syncState: "idle" as const,
         syncError: null,
@@ -320,6 +329,7 @@ export const useStore = create<StoreState>((set, get) => {
         isAdmin: false,
         githubConnected: false,
         integrations: DEFAULT_INTEGRATIONS,
+        notifications: { items: [] },
         authState: "anon",
         syncState: "idle",
         syncError: null,
@@ -783,6 +793,13 @@ export const useStore = create<StoreState>((set, get) => {
     /** Starts the GitHub OAuth flow; the server mints a signed state and the
      * browser leaves for github.com. Completion lands on /settings with a
      * `?github=` result the settings page toasts. */
+    markNotificationsSeen: () => {
+      const seenAt = new Date().toISOString()
+      set((state) => ({
+        notifications: { ...state.notifications, seenAt },
+      }))
+      api.post("/notifications/seen").catch(() => {})
+    },
     updateIntegration: (key, enabled) => {
       const previous = get().integrations[key]
       set((s) => ({
@@ -877,11 +894,35 @@ export function StoreEffects() {
         checking = false
       }
     }
+    // Chime when a live reload brings unread notifications we haven't heard
+    // about yet — not on first load, not for items already known.
+    let knownIds: Set<string> | null = null
+    const unsubscribe = useStore.subscribe((state, prev) => {
+      if (state.notifications === prev.notifications) return
+      const feed = state.notifications
+      if (state.authState !== "authed") {
+        knownIds = null
+        return
+      }
+      const ids = new Set(feed.items.map((n) => n.id))
+      if (knownIds === null) {
+        knownIds = ids
+        return
+      }
+      const fresh = feed.items.some(
+        (n) =>
+          !knownIds?.has(n.id) && (!feed.seenAt || n.at > feed.seenAt),
+      )
+      knownIds = ids
+      if (fresh) playChime()
+    })
+
     const onFocus = () => void pull()
     const poll = setInterval(() => void pull(), 4_000)
     document.addEventListener("visibilitychange", onFocus)
     window.addEventListener("focus", onFocus)
     return () => {
+      unsubscribe()
       clearInterval(poll)
       document.removeEventListener("visibilitychange", onFocus)
       window.removeEventListener("focus", onFocus)

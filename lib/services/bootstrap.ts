@@ -9,6 +9,7 @@ import {
   slackWebhookUrl,
 } from "@/lib/env"
 import type { Integrations } from "@/lib/types"
+import { loadNotifications } from "./notifications"
 import { getSetting } from "./settings"
 import { safeTicket } from "./tickets"
 import { publicUser } from "./users"
@@ -19,7 +20,7 @@ import { publicUser } from "./users"
  * by the cards/detail views that actually render it.
  */
 export async function loadBootstrap(me: SessionUser) {
-  const [users, projects, columns, tickets, docs, integrations] =
+  const [users, projects, columns, tickets, docs, integrations, notifications] =
     await Promise.all([
       prisma.user.findMany({ orderBy: { name: "asc" } }),
       prisma.project.findMany({ orderBy: { createdAt: "asc" } }),
@@ -32,6 +33,7 @@ export async function loadBootstrap(me: SessionUser) {
       }),
       prisma.doc.findMany({ orderBy: { createdAt: "desc" } }),
       loadIntegrations(),
+      loadNotifications(me.id),
     ])
 
   return {
@@ -44,6 +46,7 @@ export async function loadBootstrap(me: SessionUser) {
     })),
     docs,
     integrations,
+    notifications,
     me: publicUser(me),
     isAdmin: me.role === "admin",
     githubConnected: me.githubConnected,

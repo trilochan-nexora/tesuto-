@@ -341,3 +341,27 @@ export const PROJECT_COLORS = [
   "#14b8a6",
   "#6366f1",
 ] as const
+
+export type NotificationKind = "comment" | "assigned" | "status"
+
+export type AppNotification = {
+  id: string
+  kind: NotificationKind
+  ticketId: string
+  ticketKey: string
+  ticketTitle: string
+  actorId?: string
+  at: string
+  /** Comment excerpt, or the new column id for status changes. */
+  detail?: string
+}
+
+export type NotificationFeed = {
+  items: AppNotification[]
+  /** Items after this are unread. Unset = never opened the feed. */
+  seenAt?: string
+}
+
+export function unreadCount(feed: NotificationFeed) {
+  return feed.items.filter((n) => !feed.seenAt || n.at > feed.seenAt).length
+}

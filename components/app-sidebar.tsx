@@ -28,7 +28,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { useStore } from "@/lib/store"
-import { ROLE_META } from "@/lib/types"
+import { ROLE_META, unreadCount } from "@/lib/types"
 import { initials } from "@/lib/utils"
 
 const mainNav = [
@@ -66,8 +66,10 @@ const toolsNav = [
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { projects, tickets, currentUser, isAdmin, signOut } = useStore()
-  const openCount = tickets.filter((t) => !t.resolvedAt).length
+  const { projects, notifications, currentUser, isAdmin, signOut } =
+    useStore()
+  // Unread notifications for *me* — not every open ticket in the workspace.
+  const unread = unreadCount(notifications)
 
   const isActive = (href: string) =>
     href === "/inbox" ? pathname === href : pathname.startsWith(href)
@@ -120,9 +122,12 @@ export function AppSidebar() {
                     <item.icon className={item.color} />
                     <span>{item.title}</span>
                   </SidebarMenuButton>
-                  {item.href === "/inbox" && openCount > 0 ? (
-                    <SidebarMenuBadge className="bg-destructive text-white">
-                      {openCount > 99 ? "99+" : openCount}
+                  {item.href === "/inbox" && unread > 0 ? (
+                    <SidebarMenuBadge
+                      className="bg-destructive text-white"
+                      aria-label={`${unread} unread`}
+                    >
+                      {unread > 99 ? "99+" : unread}
                     </SidebarMenuBadge>
                   ) : null}
                 </SidebarMenuItem>
