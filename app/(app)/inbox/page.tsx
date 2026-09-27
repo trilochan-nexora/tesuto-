@@ -1,10 +1,19 @@
 "use client"
 
-import { CheckCircleIcon, RecordIcon, TrayIcon, MagnifyingGlassIcon, WarningIcon } from "@phosphor-icons/react"
-import { useMemo, useState } from "react"
+import {
+  BookmarkSimpleIcon,
+  CheckCircleIcon,
+  MagnifyingGlassIcon,
+  RecordIcon,
+  TrayIcon,
+  WarningIcon,
+  XIcon,
+} from "@phosphor-icons/react"
+import { useEffect, useMemo, useState } from "react"
 import { AppHeader } from "@/components/app-header"
 import { Pagination, usePagination } from "@/components/pagination"
 import { TicketRow } from "@/components/ticket-row"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -20,10 +29,53 @@ import {
 } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { slaFor } from "@/lib/sla"
 import { useStore } from "@/lib/store"
 import { DEFAULT_COLUMNS } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
-type Filter = "all" | "mine" | "urgent" | "open"
+const FILTERS = ["all", "open", "mine", "urgent", "overdue"] as const
+type Filter = (typeof FILTERS)[number]
+const FILTER_LABEL: Record<Filter, string> = {
+  all: "All",
+  open: "Open",
+  mine: "Mine",
+  urgent: "Urgent",
+  overdue: "Overdue",
+}
+
+// Saved inbox views are a per-device convenience (localStorage), validated on
+// read so a stale or hand-edited entry can't break the page.
+type SavedView = { id: string; name: string; filter: Filter; query: string }
+const VIEWS_KEY = "tesuto:inbox-views"
+function readViews(): SavedView[] {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(VIEWS_KEY) ?? "[]")
+    if (!Array.isArray(raw)) return []
+    return raw
+      .filter(
+        (v): v is SavedView =>
+          !!v &&
+          typeof v.id === "string" &&
+          typeof v.name === "string" &&
+          typeof v.query === "string" &&
+          (FILTERS as readonly string[]).includes(v.filter),
+      )
+      .map((v) => ({
+        ...v,
+        name: v.name.slice(0, 40),
+        query: v.query.slice(0, 100),
+      }))
+      .slice(0, 12)
+  } catch {
+    return []
+  }
+}
+function writeViews(views: SavedView[]) {
+  try {
+    localStorage.setItem(VIEWS_KEY, JSON.stringify(views))
+  } catch {}
+}
 
 const PER_PAGE = 20
 
@@ -38,6 +90,31 @@ export default function InboxPage() {
   const { tickets, currentUser } = useStore()
   const [filter, setFilter] = useState<Filter>("all")
   const [query, setQuery] = useState("")
+  const [views, setViews] = useState<SavedView[]>([])
+  const [naming, setNaming] = useState<string | null>(null)
+  useEffect(() => setViews(readViews()), [])
+
+  function applyView(v: SavedView) {
+    setFilter(v.filter)
+    setQuery(v.query)
+    pg.setPage(1)
+  }
+  function saveView() {
+    const name = (naming ?? "").trim().slice(0, 40)
+    if (!name) return
+    const next = [
+      ...views.filter((v) => v.name !== name),
+      { id: `${Date.now()}`, name, filter, query: query.trim() },
+    ].slice(-12)
+    setViews(next)
+    writeViews(next)
+    setNaming(null)
+  }
+  function removeView(id: string) {
+    const next = views.filter((v) => v.id !== id)
+    setViews(next)
+    writeViews(next)
+  }
 
   const isOpen = (t: { resolvedAt?: string }) => !t.resolvedAt
 
@@ -48,7 +125,8 @@ export default function InboxPage() {
     ).length
     const mine = tickets.filter((t) => t.assigneeId === currentUser.id).length
     const done = tickets.filter((t) => !!t.resolvedAt).length
-    return { open, urgent, mine, done }
+    const overdue = tickets.filter((t) => slaFor(t)?.state === "overdue").length
+    return { open, urgent, mine, done, overdue }
   }, [tickets, currentUser.id])
 
   const filtered = useMemo(() => {
@@ -57,6 +135,8 @@ export default function InboxPage() {
       list = list.filter((t) => t.assigneeId === currentUser.id)
     if (filter === "urgent") list = list.filter((t) => t.priority === "urgent")
     if (filter === "open") list = list.filter(isOpen)
+    if (filter === "overdue")
+      list = list.filter((t) => slaFor(t)?.state === "overdue")
     if (query.trim()) {
       const q = query.toLowerCase()
       list = list.filter(
@@ -139,10 +219,16 @@ export default function InboxPage() {
               }}
             >
               <TabsList>
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="open">Open</TabsTrigger>
-                <TabsTrigger value="mine">Mine</TabsTrigger>
-                <TabsTrigger value="urgent">Urgent</TabsTrigger>
+                {FILTERS.map((f) => (
+                  <TabsTrigger key={f} value={f}>
+                    {FILTER_LABEL[f]}
+                    {f === "overdue" && stats.overdue > 0 ? (
+                      <span className="ml-1.5 rounded bg-destructive/10 px-1 text-[11px] font-semibold text-destructive tabular-nums">
+                        {stats.overdue}
+                      </span>
+                    ) : null}
+                  </TabsTrigger>
+                ))}
               </TabsList>
             </Tabs>
             <div className="relative w-full sm:w-64">
@@ -158,6 +244,94 @@ export default function InboxPage() {
               />
             </div>
           </CardHeader>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-4 py-2">
+            <BookmarkSimpleIcon className="size-4 text-amber-500" />
+            {views.length === 0 && naming === null ? (
+              <span className="text-xs text-muted-foreground">
+                No saved views yet
+              </span>
+            ) : null}
+            {views.map((v) => {
+              const active = v.filter === filter && v.query === query.trim()
+              return (
+                <span
+                  key={v.id}
+                  className={cn(
+                    "inline-flex items-center rounded-full border text-xs",
+                    active
+                      ? "border-foreground/30 bg-accent font-medium"
+                      : "hover:bg-accent/60",
+                  )}
+                >
+                  <button
+                    type="button"
+                    className="py-1 pr-1 pl-2.5"
+                    onClick={() => applyView(v)}
+                    title={`${FILTER_LABEL[v.filter]}${v.query ? ` · "${v.query}"` : ""}`}
+                  >
+                    {v.name}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-full p-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => removeView(v.id)}
+                  >
+                    <XIcon className="size-3" />
+                    <span className="sr-only">Remove view {v.name}</span>
+                  </button>
+                </span>
+              )
+            })}
+            {naming === null ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setNaming("")}
+              >
+                Save current view
+              </Button>
+            ) : (
+              <form
+                className="flex items-center gap-1.5"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  saveView()
+                }}
+              >
+                <Input
+                  autoFocus
+                  aria-label="View name"
+                  placeholder="View name"
+                  maxLength={40}
+                  className="h-7 w-40 text-xs"
+                  value={naming}
+                  onChange={(e) => setNaming(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setNaming(null)
+                  }}
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={!naming.trim()}
+                >
+                  Save
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setNaming(null)}
+                >
+                  Cancel
+                </Button>
+              </form>
+            )}
+          </div>
 
           <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
             {filtered.length === 0 ? (

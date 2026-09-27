@@ -1,6 +1,6 @@
 "use client"
 
-import { ImageIcon, ChatIcon } from "@phosphor-icons/react"
+import { ChatIcon, ImageIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import {
   PriorityBadge,
@@ -8,14 +8,17 @@ import {
   TypeIcon,
   UserAvatar,
 } from "@/components/shared"
+import { slaFor } from "@/lib/sla"
 import { useStore } from "@/lib/store"
 import type { Ticket } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 export function TicketRow({ ticket }: { ticket: Ticket }) {
   const { getUser, getProject } = useStore()
   const assignee = getUser(ticket.assigneeId)
   const project = getProject(ticket.projectId)
   const commentCount = ticket.commentCount ?? 0
+  const sla = slaFor(ticket)
 
   return (
     <Link
@@ -29,6 +32,21 @@ export function TicketRow({ ticket }: { ticket: Ticket }) {
       <span className="min-w-0 flex-1 truncate text-sm font-medium">
         {ticket.title}
       </span>
+      {sla ? (
+        <span
+          title={`Open ${sla.age} · ${ticket.priority} tickets are due within ${sla.limit}`}
+          className={cn(
+            "shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] tabular-nums",
+            sla.state === "overdue"
+              ? "bg-destructive/10 font-semibold text-destructive"
+              : sla.state === "due"
+                ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                : "text-muted-foreground",
+          )}
+        >
+          {sla.state === "overdue" ? `overdue ${sla.age}` : sla.age}
+        </span>
+      ) : null}
 
       <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:flex">
         {ticket.screenshotUrl ? <ImageIcon className="size-3.5" /> : null}
