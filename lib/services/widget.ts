@@ -16,7 +16,7 @@ import {
   resendApiKey,
 } from "@/lib/env"
 import { signedMediaUrl } from "@/lib/media"
-import { sendAuthEmail } from "@/lib/notify"
+import { devMailFallback, logDevAuthCode, sendAuthEmail } from "@/lib/notify"
 import { columnMeta } from "@/lib/types"
 import { addComment } from "./comments"
 import { createTicket, patchTicket } from "./tickets"
@@ -134,7 +134,12 @@ export async function startLink(input: { assertion?: string; email?: string }) {
   const email = input.email?.trim().toLowerCase()
   if (!email) throw new HttpError("Email is required", 400)
   const devCode = authDevCode()
-  if (!devCode && (!resendApiKey() || !emailFrom())) {
+  // Dev can run without a mail provider — codes are printed to the console.
+  if (
+    !devCode &&
+    process.env.NODE_ENV === "production" &&
+    (!resendApiKey() || !emailFrom())
+  ) {
     throw new HttpError("Verification email is not configured", 503)
   }
   const target = await prisma.user.findUnique({
@@ -175,6 +180,7 @@ export async function startLink(input: { assertion?: string; email?: string }) {
       verifiedAt: null,
     },
   })
+  logDevAuthCode("widget link", email, code)
   if (!devCode) {
     try {
       await sendAuthEmail(
@@ -183,6 +189,8 @@ export async function startLink(input: { assertion?: string; email?: string }) {
         `<p>Your Tesuto verification code is: <strong style="font-size:20px;letter-spacing:4px">${code}</strong></p><p>It expires in 10 minutes. If you didn't request this, ignore the email.</p>`,
       )
     } catch (error) {
+      if (devMailFallback(error))
+        return { ok: true as const, email: maskEmail(email) }
       await prisma.widgetLink.update({
         where: { hostEmail },
         data: { codeHash: null, codeExpiresAt: null },

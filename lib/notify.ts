@@ -91,6 +91,22 @@ export async function sendAuthEmail(to: string, subject: string, html: string) {
   if (error) throw new Error(error.message || "Authentication email failed")
 }
 
+/**
+ * Development only: echo auth codes to the server console so sign-in and
+ * widget linking work without a mail provider. A no-op in production.
+ */
+export function logDevAuthCode(kind: string, email: string, code: string) {
+  if (process.env.NODE_ENV === "production") return
+  console.info(`[auth:dev] ${kind} code for ${email}: ${code}`)
+}
+
+/** In development a failed send shouldn't block — the code is in the console. */
+export function devMailFallback(error: unknown) {
+  if (process.env.NODE_ENV === "production") return false
+  console.warn("[auth:dev] email not sent — use the code logged above", error)
+  return true
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")

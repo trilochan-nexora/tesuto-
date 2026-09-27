@@ -10,7 +10,7 @@ import {
   emailFrom,
   resendApiKey,
 } from "@/lib/env"
-import { sendAuthEmail } from "@/lib/notify"
+import { devMailFallback, logDevAuthCode, sendAuthEmail } from "@/lib/notify"
 import { PROJECT_COLORS } from "@/lib/types"
 
 /**
@@ -74,7 +74,12 @@ export async function requestSignInCode(input: { email: string }) {
   const email = input.email.trim().toLowerCase()
   loginSecret()
   const devCode = authDevCode()
-  if (!devCode && (!resendApiKey() || !emailFrom())) {
+  // Dev can run without a mail provider — codes are printed to the console.
+  if (
+    !devCode &&
+    process.env.NODE_ENV === "production" &&
+    (!resendApiKey() || !emailFrom())
+  ) {
     throw new HttpError("Email sign-in is not configured", 503)
   }
   const user = await prisma.user.findUnique({
@@ -113,6 +118,7 @@ export async function requestSignInCode(input: { email: string }) {
     },
   })
 
+  logDevAuthCode("sign-in", email, code)
   if (!devCode) {
     try {
       await sendAuthEmail(
@@ -121,6 +127,7 @@ export async function requestSignInCode(input: { email: string }) {
         `<p>Your Tesuto sign-in code is:</p><p><strong style="font-size:24px;letter-spacing:4px">${code}</strong></p><p>It expires in 10 minutes and can only be used once. If you didn't request it, ignore this email.</p>`,
       )
     } catch (error) {
+      if (devMailFallback(error)) return { ok: true as const }
       await prisma.loginCode.deleteMany({ where: { email } })
       console.error("[auth] sign-in email failed", error)
       throw new HttpError("Sign-in email could not be sent", 503)
