@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { handler } from "@/lib/api"
 import { zRole } from "@/lib/schemas"
-import { updateUser } from "@/lib/services/users"
+import { deleteUser, updateUser } from "@/lib/services/users"
 
 const PatchSchema = z.object({
   name: z.string().min(1).optional(),
@@ -18,4 +18,9 @@ export const PATCH = handler({
   schema: PatchSchema,
   admin: true,
   run: (input, { params }) => updateUser(params.id, input),
+})
+
+export const DELETE = handler({
+  admin: true,
+  run: (_input, { params }) => deleteUser(params.id),
 })

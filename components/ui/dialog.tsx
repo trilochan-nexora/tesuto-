@@ -2,7 +2,7 @@
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { cn } from "cn"
-import { XIcon } from "lucide-react"
+import { XIcon } from "@phosphor-icons/react"
 import type * as React from "react"
 import { Button } from "@/components/ui/button"
 

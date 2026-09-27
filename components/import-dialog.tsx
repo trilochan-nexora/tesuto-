@@ -1,6 +1,6 @@
 "use client"
 
-import { ListChecks } from "lucide-react"
+import { ListChecksIcon } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -251,7 +251,7 @@ export function ImportDialog({
               className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4 text-left transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
             >
               <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-foreground text-background">
-                <ListChecks className="size-5" />
+                <ListChecksIcon className="size-5" />
               </span>
               <span className="flex flex-col gap-0.5">
                 <span className="font-medium">ClickUp</span>

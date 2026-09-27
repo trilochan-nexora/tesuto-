@@ -1,12 +1,6 @@
 "use client"
 
-import {
-  ArrowUpRight,
-  ExternalLink,
-  Monitor,
-  Plus,
-  TriangleAlert,
-} from "lucide-react"
+import { ArrowUpRightIcon, ArrowSquareOutIcon, MonitorIcon, PlusIcon, WarningIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
 import { use, useState } from "react"
@@ -14,6 +8,7 @@ import { toast } from "sonner"
 import { AppHeader } from "@/components/app-header"
 import { GithubIcon } from "@/components/icons"
 import { NewTicketDialog } from "@/components/new-ticket-dialog"
+import { PageBack } from "@/components/page-back"
 import {
   isEmptyHtml,
   RichText,
@@ -150,7 +145,8 @@ export default function TicketDetailPage({
     <>
       <AppHeader title={ticket.key} description={ticket.title} />
 
-      <div className="w-full p-4 md:p-8">
+      <div className="flex w-full flex-col gap-6 p-4 md:p-8">
+        <PageBack href="/inbox" label="Back to inbox" />
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
           {/* Main column */}
           <div className="flex min-w-0 flex-col gap-8">
@@ -325,7 +321,7 @@ export default function TicketDetailPage({
                     className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
                   >
                     {ticket.sourceUrl}
-                    <ExternalLink className="size-3.5" />
+                    <ArrowSquareOutIcon className="size-3.5" />
                   </a>
                 ) : null}
                 {ticket.domSnapshot ? (
@@ -362,7 +358,7 @@ export default function TicketDetailPage({
               ctx.failedRequests?.length) ? (
               <section className="flex flex-col gap-3 rounded-xl bg-muted/40 p-4">
                 <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <Monitor className="size-3.5" />
+                  <MonitorIcon className="size-3.5" />
                   Session context
                 </h2>
                 {ctx.browser ? (
@@ -379,7 +375,7 @@ export default function TicketDetailPage({
                         key={line}
                         className="flex items-start gap-2 rounded-md bg-destructive/10 px-2.5 py-1.5 font-mono text-xs text-destructive"
                       >
-                        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                        <WarningIcon className="mt-0.5 size-3.5 shrink-0" />
                         <span className="whitespace-pre-wrap">{line}</span>
                       </code>
                     ))}
@@ -552,7 +548,7 @@ export default function TicketDetailPage({
                   defaultParentId={ticket.id}
                   trigger={
                     <Button variant="outline" size="sm" className="w-fit">
-                      <Plus data-icon="inline-start" />
+                      <PlusIcon data-icon="inline-start" />
                       Add sub-ticket
                     </Button>
                   }
@@ -781,7 +777,7 @@ export default function TicketDetailPage({
                     <GithubIcon className="size-4" />
                     View on GitHub
                   </span>
-                  <ArrowUpRight className="size-4 text-muted-foreground" />
+                  <ArrowUpRightIcon className="size-4 text-muted-foreground" />
                 </a>
               ) : (
                 <Button

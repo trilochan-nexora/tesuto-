@@ -1,6 +1,6 @@
 "use client"
 
-import { Bug, CircleHelp, ListChecks, SignalHigh, Sparkles } from "lucide-react"
+import { BugIcon, QuestionIcon, ListChecksIcon, CellSignalHighIcon, SparkleIcon } from "@phosphor-icons/react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -39,11 +39,11 @@ export function RelativeTime({
   )
 }
 
-const TYPE_ICON: Record<IssueType, typeof Bug> = {
-  bug: Bug,
-  feature: Sparkles,
-  task: ListChecks,
-  question: CircleHelp,
+const TYPE_ICON: Record<IssueType, typeof BugIcon> = {
+  bug: BugIcon,
+  feature: SparkleIcon,
+  task: ListChecksIcon,
+  question: QuestionIcon,
 }
 
 const TYPE_COLOR: Record<IssueType, string> = {
@@ -84,7 +84,7 @@ export function PriorityBadge({ priority }: { priority: TicketPriority }) {
         meta.className,
       )}
     >
-      <SignalHigh className="size-3.5" />
+      <CellSignalHighIcon className="size-3.5" />
       {meta.label}
     </span>
   )

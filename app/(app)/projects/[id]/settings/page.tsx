@@ -1,6 +1,6 @@
 "use client"
 
-import { Globe, KeyRound, SquareKanban, TriangleAlert } from "lucide-react"
+import { GlobeIcon, KeyIcon, KanbanIcon, WarningIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
 import { use, useState } from "react"
@@ -65,7 +65,7 @@ export default function ProjectSettingsPage({
             </span>
           </div>
           <span className="ml-auto flex items-center gap-1.5 text-sm text-muted-foreground">
-            <SquareKanban className="size-4" />
+            <KanbanIcon className="size-4" />
             {count} {count === 1 ? "ticket" : "tickets"}
           </span>
         </section>
@@ -75,7 +75,7 @@ export default function ProjectSettingsPage({
         <section className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <KeyRound className="size-4" />
+              <KeyIcon className="size-4" />
               Widget token
             </h2>
             <p className="text-sm text-muted-foreground">
@@ -92,7 +92,7 @@ export default function ProjectSettingsPage({
         <section className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <Globe className="size-4" />
+              <GlobeIcon className="size-4" />
               Embed on any site
             </h2>
             <p className="text-sm text-muted-foreground">
@@ -155,7 +155,7 @@ export default function ProjectSettingsPage({
         <section className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
           <div className="flex flex-col gap-1">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-destructive">
-              <TriangleAlert className="size-4" />
+              <WarningIcon className="size-4" />
               Delete project
             </h2>
             <p className="text-sm text-muted-foreground">

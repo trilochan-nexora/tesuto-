@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowUpRight, MapPin, Square, Trash2 } from "lucide-react"
+import { ArrowUpRightIcon, MapPinIcon, SquareIcon, TrashIcon } from "@phosphor-icons/react"
 import { useCallback, useId, useRef, useState } from "react"
 import { ANNOTATION_COLORS, type Annotation } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -143,7 +143,7 @@ export function ScreenshotEditor({
             onClick={() => add("box")}
             className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs font-medium hover:bg-muted/70"
           >
-            <Square className="size-3.5" />
+            <SquareIcon className="size-3.5" />
             Box
           </button>
           <button
@@ -151,7 +151,7 @@ export function ScreenshotEditor({
             onClick={() => add("arrow")}
             className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs font-medium hover:bg-muted/70"
           >
-            <ArrowUpRight className="size-3.5" />
+            <ArrowUpRightIcon className="size-3.5" />
             Arrow
           </button>
           <button
@@ -159,7 +159,7 @@ export function ScreenshotEditor({
             onClick={() => add("pin")}
             className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs font-medium hover:bg-muted/70"
           >
-            <MapPin className="size-3.5" />
+            <MapPinIcon className="size-3.5" />
             Pin
           </button>
 
@@ -190,7 +190,7 @@ export function ScreenshotEditor({
               onClick={() => remove(active.id)}
               className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
             >
-              <Trash2 className="size-3.5" />
+              <TrashIcon className="size-3.5" />
               Delete
             </button>
           ) : (
@@ -275,7 +275,7 @@ export function ScreenshotEditor({
                     {a.label}
                   </span>
                 ) : null}
-                <MapPin
+                <MapPinIcon
                   className="size-6 drop-shadow"
                   style={{ color: a.color, fill: a.color }}
                   strokeWidth={1.5}

@@ -1,6 +1,6 @@
 "use client"
 
-import { Check } from "lucide-react"
+import { CheckIcon } from "@phosphor-icons/react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -117,7 +117,7 @@ export function ColumnDialog({
                     )}
                   >
                     {dot === c ? (
-                      <Check className="size-3.5 text-white" strokeWidth={3} />
+                      <CheckIcon className="size-3.5 text-white" strokeWidth={3} />
                     ) : null}
                   </span>
                 </button>

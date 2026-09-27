@@ -1,8 +1,9 @@
 "use client"
 
-import { Loader2 } from "lucide-react"
+import { CircleNotchIcon } from "@phosphor-icons/react"
 import { useState } from "react"
 import { toast } from "sonner"
+import { AppSkeleton } from "@/components/app-skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,11 +13,7 @@ export function SignInGate({ children }: { children: React.ReactNode }) {
   const { authState } = useStore()
 
   if (authState === "loading") {
-    return (
-      <div className="flex h-svh w-full items-center justify-center">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
-      </div>
-    )
+    return <AppSkeleton />
   }
 
   if (authState === "anon") return <SignInScreen />
@@ -37,7 +34,7 @@ function SignInScreen() {
     try {
       await signIn(name.trim(), email.trim())
     } catch (err) {
-      toast.error("Couldn't sign in")
+      toast.error(err instanceof Error ? err.message : "Couldn't sign in")
       console.error(err)
     } finally {
       setBusy(false)
@@ -79,7 +76,7 @@ function SignInScreen() {
           />
         </div>
         <Button type="submit" disabled={busy || !name.trim() || !email.trim()}>
-          {busy ? <Loader2 className="size-4 animate-spin" /> : "Continue"}
+          {busy ? <CircleNotchIcon className="size-4 animate-spin" /> : "Continue"}
         </Button>
       </form>
     </div>

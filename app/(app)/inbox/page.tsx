@@ -1,12 +1,6 @@
 "use client"
 
-import {
-  CheckCircle2,
-  CircleDot,
-  Inbox as InboxIcon,
-  Search,
-  TriangleAlert,
-} from "lucide-react"
+import { CheckCircleIcon, RecordIcon, TrayIcon, MagnifyingGlassIcon, WarningIcon } from "@phosphor-icons/react"
 import { useMemo, useState } from "react"
 import { AppHeader } from "@/components/app-header"
 import { Pagination, usePagination } from "@/components/pagination"
@@ -86,25 +80,25 @@ export default function InboxPage() {
     {
       label: "Open tickets",
       value: stats.open,
-      icon: CircleDot,
+      icon: RecordIcon,
       tone: "text-sky-500",
     },
     {
       label: "Urgent",
       value: stats.urgent,
-      icon: TriangleAlert,
+      icon: WarningIcon,
       tone: "text-red-500",
     },
     {
       label: "Assigned to me",
       value: stats.mine,
-      icon: InboxIcon,
+      icon: TrayIcon,
       tone: "text-violet-500",
     },
     {
       label: "Resolved",
       value: stats.done,
-      icon: CheckCircle2,
+      icon: CheckCircleIcon,
       tone: "text-emerald-500",
     },
   ]
@@ -152,7 +146,7 @@ export default function InboxPage() {
               </TabsList>
             </Tabs>
             <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search tickets…"
                 className="pl-8"
@@ -170,7 +164,7 @@ export default function InboxPage() {
               <Empty className="py-16">
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
-                    <InboxIcon />
+                    <TrayIcon />
                   </EmptyMedia>
                   <EmptyTitle>No tickets found</EmptyTitle>
                   <EmptyDescription>

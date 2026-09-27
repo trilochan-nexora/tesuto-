@@ -1,6 +1,6 @@
 "use client"
 
-import { CircleDot, Columns3, Flag, FolderGit2, UserRound } from "lucide-react"
+import { RecordIcon, ColumnsIcon, FlagIcon, FolderIcon, UserIcon } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -167,7 +167,7 @@ export function NewTicketDialog({
             onValueChange={(v) => v && setAssigneeId(v)}
           >
             <SelectTrigger className={PILL}>
-              <UserRound className="size-3.5" />
+              <UserIcon className="size-3.5" />
               {assigneeId === "unassigned"
                 ? "Assignee"
                 : users.find((u) => u.id === assigneeId)?.name}
@@ -189,7 +189,7 @@ export function NewTicketDialog({
             onValueChange={(v) => v && setType(v as IssueType)}
           >
             <SelectTrigger className={PILL}>
-              <CircleDot className="size-3.5" />
+              <RecordIcon className="size-3.5" />
               {TYPE_META[type].label}
             </SelectTrigger>
             <SelectContent>
@@ -208,7 +208,7 @@ export function NewTicketDialog({
             onValueChange={(v) => v && setPriority(v as TicketPriority)}
           >
             <SelectTrigger className={PILL}>
-              <Flag className="size-3.5" />
+              <FlagIcon className="size-3.5" />
               {PRIORITY_META[priority].label}
             </SelectTrigger>
             <SelectContent>
@@ -224,7 +224,7 @@ export function NewTicketDialog({
 
           <Select value={status} onValueChange={(v) => v && setStatus(v)}>
             <SelectTrigger className={PILL}>
-              <Columns3 className="size-3.5" />
+              <ColumnsIcon className="size-3.5" />
               {columnMeta(status, columns).label}
             </SelectTrigger>
             <SelectContent>
@@ -240,7 +240,7 @@ export function NewTicketDialog({
 
           <Select value={projectId} onValueChange={(v) => v && selectProject(v)}>
             <SelectTrigger className={PILL}>
-              <FolderGit2 className="size-3.5" />
+              <FolderIcon className="size-3.5" />
               {project?.name}
             </SelectTrigger>
             <SelectContent>

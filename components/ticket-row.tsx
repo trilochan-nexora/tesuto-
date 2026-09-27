@@ -1,6 +1,6 @@
 "use client"
 
-import { ImageIcon, MessageSquare } from "lucide-react"
+import { ImageIcon, ChatIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import {
   PriorityBadge,
@@ -34,7 +34,7 @@ export function TicketRow({ ticket }: { ticket: Ticket }) {
         {ticket.screenshotUrl ? <ImageIcon className="size-3.5" /> : null}
         {commentCount > 0 ? (
           <span className="flex items-center gap-0.5">
-            <MessageSquare className="size-3.5" />
+            <ChatIcon className="size-3.5" />
             {commentCount}
           </span>
         ) : null}

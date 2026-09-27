@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -59,7 +59,7 @@ export function Pagination({
             disabled={page <= 1}
             onClick={() => onPage(page - 1)}
           >
-            <ChevronLeft className="size-3.5" />
+            <CaretLeftIcon className="size-3.5" />
             Prev
           </Button>
           <span className="tabular-nums">
@@ -72,7 +72,7 @@ export function Pagination({
             onClick={() => onPage(page + 1)}
           >
             Next
-            <ChevronRight className="size-3.5" />
+            <CaretRightIcon className="size-3.5" />
           </Button>
         </div>
       ) : null}

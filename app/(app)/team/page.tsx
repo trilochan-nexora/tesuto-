@@ -1,10 +1,16 @@
 "use client"
 
-import { ShieldAlert, UserPlus } from "lucide-react"
+import {
+  ShieldWarningIcon,
+  TrashIcon,
+  UserPlusIcon,
+} from "@phosphor-icons/react"
 import { useMemo } from "react"
 import { toast } from "sonner"
 import { AppHeader } from "@/components/app-header"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { InviteUserDialog } from "@/components/invite-user-dialog"
+import { Pagination, usePagination } from "@/components/pagination"
 import { Button } from "@/components/ui/button"
 import {
   Empty,
@@ -26,7 +32,8 @@ import { ROLE_META, type UserRole } from "@/lib/types"
 import { initials } from "@/lib/utils"
 
 export default function TeamPage() {
-  const { users, tickets, currentUser, isAdmin, updateUser } = useStore()
+  const { users, tickets, currentUser, isAdmin, updateUser, deleteUser } =
+    useStore()
 
   const load = useMemo(() => {
     const map: Record<string, number> = {}
@@ -40,6 +47,11 @@ export default function TeamPage() {
 
   const activeAdmins = users.filter((u) => u.role === "admin" && u.active)
   const admins = activeAdmins.length
+
+  const { slice, page, setPage, pageCount, total, perPage } = usePagination(
+    users,
+    10,
+  )
 
   if (!isAdmin) {
     const others = activeAdmins
@@ -57,7 +69,7 @@ export default function TeamPage() {
         <Empty className="py-24">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <ShieldAlert />
+              <ShieldWarningIcon />
             </EmptyMedia>
             <EmptyTitle>Admins only</EmptyTitle>
             <EmptyDescription>
@@ -82,7 +94,7 @@ export default function TeamPage() {
           <InviteUserDialog
             trigger={
               <Button size="sm">
-                <UserPlus data-icon="inline-start" />
+                <UserPlusIcon data-icon="inline-start" />
                 Invite someone
               </Button>
             }
@@ -97,10 +109,13 @@ export default function TeamPage() {
                 <th className="pb-2 text-right font-medium">Open load</th>
                 <th className="pb-2 pl-4 font-medium">Role</th>
                 <th className="pb-2 pl-4 font-medium">Status</th>
+                <th className="pb-2 pl-4 font-medium">
+                  <span className="sr-only">Delete</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => {
+              {slice.map((u) => {
                 const lastAdmin = u.role === "admin" && admins === 1
                 return (
                   <tr key={u.id} className="border-b last:border-b-0">
@@ -183,12 +198,56 @@ export default function TeamPage() {
                         {u.active ? "Deactivate" : "Reactivate"}
                       </Button>
                     </td>
+                    <td className="py-2.5 pl-4">
+                      <ConfirmDialog
+                        title={`Delete ${u.name}?`}
+                        description="This permanently removes their account. Only works if they've never reported a ticket or written a comment — deactivate instead if they have history."
+                        confirmLabel="Delete"
+                        onConfirm={() => {
+                          if (u.id === currentUser.id) {
+                            toast.error("You can't delete yourself.")
+                            return
+                          }
+                          if (lastAdmin) {
+                            toast.error("Keep at least one admin.")
+                            return
+                          }
+                          deleteUser(u.id).catch((e) => {
+                            toast.error(
+                              e instanceof Error
+                                ? e.message
+                                : "Couldn't delete this person",
+                            )
+                          })
+                        }}
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            disabled={u.id === currentUser.id || lastAdmin}
+                            aria-label={`Delete ${u.name}`}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <TrashIcon className="size-3.5" />
+                          </Button>
+                        }
+                      />
+                    </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          page={page}
+          pageCount={pageCount}
+          total={total}
+          perPage={perPage}
+          onPage={setPage}
+          noun="people"
+        />
       </div>
     </>
   )

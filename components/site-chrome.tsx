@@ -1,5 +1,6 @@
-import { ArrowRight, Flame } from "lucide-react"
+import { ArrowRightIcon } from "@phosphor-icons/react/ssr"
 import Link from "next/link"
+import { TesutoMark } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 
 export function SiteHeader() {
@@ -7,8 +8,8 @@ export function SiteHeader() {
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
         <Link href="/" className="flex items-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Flame className="size-4.5" />
+          <span className="flex size-8 items-center justify-center rounded-lg bg-brand text-brand-foreground">
+            <TesutoMark className="size-4.5" />
           </span>
           <span className="text-base font-semibold tracking-tight">Tesuto</span>
         </Link>
@@ -28,7 +29,7 @@ export function SiteHeader() {
         </nav>
         <Button size="sm" render={<Link href="/inbox" />}>
           Open Tesuto
-          <ArrowRight data-icon="inline-end" />
+          <ArrowRightIcon data-icon="inline-end" />
         </Button>
       </div>
     </header>
@@ -40,7 +41,7 @@ export function SiteFooter() {
     <footer className="border-t border-border/60">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-6 py-10 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <Flame className="size-4 text-primary" />
+          <TesutoMark className="size-4 text-brand" />
           <span>
             &copy; {new Date().getFullYear()} Tesuto — internal bug &amp;
             ticket tracking

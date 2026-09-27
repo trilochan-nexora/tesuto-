@@ -1,6 +1,6 @@
 "use client"
 
-import { ExternalLink } from "lucide-react"
+import { ArrowSquareOutIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import { MarkdownLite } from "@/components/markdown-lite"
 import { Badge } from "@/components/ui/badge"
@@ -43,7 +43,13 @@ const COUNT_BADGES: {
   },
 ]
 
-export function ReleaseDetail({ release }: { release: Release }) {
+export function ReleaseDetail({
+  release,
+  isLatest,
+}: {
+  release: Release
+  isLatest?: boolean
+}) {
   const parsed = parseReleaseNotes(release.notesMd)
 
   return (
@@ -52,14 +58,11 @@ export function ReleaseDetail({ release }: { release: Release }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="flex items-center gap-2 text-2xl font-semibold">
             {release.version}
-            <Link
-              href={release.releaseUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <ExternalLink className="size-5" />
-            </Link>
+            {isLatest ? (
+              <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-semibold text-white">
+                Latest
+              </span>
+            ) : null}
           </h1>
           {parsed.counts && (
             <div className="flex flex-wrap gap-1.5">
@@ -77,9 +80,21 @@ export function ReleaseDetail({ release }: { release: Release }) {
             </div>
           )}
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {release.repo} · {formatRelativeTime(release.createdAt)}
-          {parsed.compare ? ` · ${parsed.compare}` : ""}
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
+          <span>
+            {release.repo} · {formatRelativeTime(release.createdAt)}
+            {parsed.compare ? ` · ${parsed.compare}` : ""}
+          </span>
+          <span aria-hidden>·</span>
+          <Link
+            href={release.releaseUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 font-medium text-foreground hover:underline"
+          >
+            View {release.version} on GitHub
+            <ArrowSquareOutIcon className="size-3.5" />
+          </Link>
         </p>
 
         {parsed.summary.length > 0 && (

@@ -1,11 +1,11 @@
 import { Analytics } from "@vercel/analytics/next"
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { JetBrains_Mono, Space_Grotesk } from "next/font/google"
 import { Providers } from "@/components/providers"
 import "./globals.css"
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
+const sans = Space_Grotesk({ subsets: ["latin"], variable: "--font-sans" })
+const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 const title = "Tesuto — Bug reporting & ticket tracking"
 const description =
@@ -49,8 +49,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   colorScheme: "light dark",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#181622" },
+    { media: "(prefers-color-scheme: light)", color: "#fdfdfd" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f0f0f" },
   ],
 }
 
@@ -65,7 +65,7 @@ export default function RootLayout({
           password managers) inject attributes on <body> before React hydrates */}
       <body
         suppressHydrationWarning
-        className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${sans.variable} ${mono.variable} font-sans antialiased`}
       >
         <Providers>{children}</Providers>
         {process.env.NODE_ENV === "production" && <Analytics />}

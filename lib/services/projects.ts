@@ -177,9 +177,18 @@ export async function importProject(
       columns: { create: columnDefs.map(({ id, ...c }) => ({ id, ...c })) },
       tickets: {
         create: input.issues.map((issue, i) => {
-          const target =
-            columnDefs.find((c) => c.label === issue.status) ??
-            (issue.resolved ? doneCol : firstCol)
+          // A closed/merged GitHub issue is ground truth — land it in the
+          // terminal column even if its board "Status" field was never
+          // dragged to match (very common: people close the issue without
+          // updating the card). Otherwise, mirror the board's own column.
+          const wantedLabel = issue.status?.trim().toLowerCase()
+          const target = issue.resolved
+            ? doneCol
+            : (wantedLabel &&
+                columnDefs.find(
+                  (c) => c.label.trim().toLowerCase() === wantedLabel,
+                )) ||
+              firstCol
           const events: TicketEvent[] = [
             { at: iso.toISOString(), kind: "created", actorId },
           ]

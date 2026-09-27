@@ -1,6 +1,58 @@
 import type { SVGProps } from "react"
 
 /**
+ * The Tesuto mark — a bold "T" monogram. Mirrors public/icon.svg so the
+ * favicon and the in-app badge (sidebar, header, 404) are the same logo.
+ */
+export function TesutoMark({
+  width = "1em",
+  height = "1em",
+  ...props
+}: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={width}
+      height={height}
+      fill="currentColor"
+      aria-hidden="true"
+      {...props}
+    >
+      <rect x="4" y="5" width="16" height="3.2" rx="1.2" />
+      <rect x="10.4" y="5" width="3.2" height="14" rx="1.2" />
+    </svg>
+  )
+}
+
+/**
+ * ClickUp mark — not in the Phosphor set, so Tesuto ships a simplified one
+ * (their double-chevron "CU" glyph). Sized like a lucide/Phosphor icon.
+ */
+export function ClickUpIcon({
+  width = "1em",
+  height = "1em",
+  ...props
+}: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={width}
+      height={height}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M7 15.5 12 11l5 4.5" />
+      <path d="M9.5 18.5 12 16.3l2.5 2.2" />
+    </svg>
+  )
+}
+
+/**
  * GitHub mark. lucide-react dropped brand glyphs in v1, so Tesuto ships its own.
  * Sized via `className` / `width` like a lucide icon (defaults to 1em).
  */

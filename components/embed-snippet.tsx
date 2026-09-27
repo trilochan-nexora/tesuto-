@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Copy } from "lucide-react"
+import { CheckIcon, CopyIcon } from "@phosphor-icons/react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 
@@ -42,9 +42,9 @@ export function CopyableCode({
           className="absolute right-2 top-2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
         >
           {copied ? (
-            <Check className="size-4 text-emerald-500" />
+            <CheckIcon className="size-4 text-emerald-500" />
           ) : (
-            <Copy className="size-4" />
+            <CopyIcon className="size-4" />
           )}
         </button>
       </div>

@@ -387,6 +387,7 @@ export async function widgetIssue(req: Request, id: string) {
     screenshotUrl: t.screenshotUrl,
     recordingUrl: t.recordingUrl,
     domSnapshot: t.domSnapshot,
+    context: t.context,
     createdAt: t.createdAt,
     reporter: t.reporter,
   }

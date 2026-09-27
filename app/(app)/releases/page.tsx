@@ -1,6 +1,6 @@
 "use client"
 
-import { Rocket } from "lucide-react"
+import { RocketIcon } from "@phosphor-icons/react"
 import { ReleaseDetail } from "@/components/release-detail"
 import { useReleases } from "@/components/releases-context"
 import {
@@ -24,7 +24,7 @@ export default function ReleasesPage() {
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <Rocket />
+              <RocketIcon />
             </EmptyMedia>
             <EmptyTitle>No releases yet</EmptyTitle>
             <EmptyDescription>
@@ -37,5 +37,5 @@ export default function ReleasesPage() {
     )
   }
 
-  return <ReleaseDetail release={releases[0]} />
+  return <ReleaseDetail release={releases[0]} isLatest />
 }

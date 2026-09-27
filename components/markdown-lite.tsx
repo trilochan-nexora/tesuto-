@@ -1,4 +1,4 @@
-import { Check } from "lucide-react"
+import { CheckIcon } from "@phosphor-icons/react/ssr"
 import Link from "next/link"
 import { Fragment } from "react"
 import { cn } from "@/lib/utils"
@@ -106,7 +106,7 @@ export function MarkdownLite({
                             : "border-border bg-background",
                         )}
                       >
-                        {checked ? <Check className="size-3" /> : null}
+                        {checked ? <CheckIcon className="size-3" /> : null}
                       </span>
                       <span
                         className={cn(

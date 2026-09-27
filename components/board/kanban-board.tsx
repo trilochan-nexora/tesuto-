@@ -20,16 +20,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import {
-  Archive,
-  ArrowLeft,
-  ArrowRight,
-  GripVertical,
-  MoreHorizontal,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react"
+import { ArchiveIcon, ArrowLeftIcon, ArrowRightIcon, DotsSixVerticalIcon, DotsThreeIcon, PencilIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react"
 import { useMemo, useState } from "react"
 import { KanbanCard } from "@/components/board/kanban-card"
 import { ColumnDialog } from "@/components/column-dialog"
@@ -108,7 +99,7 @@ function BoardColumn({
               className="cursor-grab touch-none rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground active:cursor-grabbing"
               aria-label={`Reorder ${col.label} column`}
             >
-              <GripVertical className="size-4" />
+              <DotsSixVerticalIcon className="size-4" />
             </button>
           ) : null}
           <span className={cn("size-2 rounded-full", col.dot)} />
@@ -135,7 +126,7 @@ function BoardColumn({
               defaultStatus={col.id}
               trigger={
                 <Button variant="ghost" size="icon" className="size-6">
-                  <Plus className="size-4" />
+                  <PlusIcon className="size-4" />
                 </Button>
               }
             />
@@ -143,7 +134,7 @@ function BoardColumn({
               <DropdownMenuTrigger
                 render={
                   <Button variant="ghost" size="icon" className="size-6">
-                    <MoreHorizontal className="size-4" />
+                    <DotsThreeIcon className="size-4" />
                   </Button>
                 }
               />
@@ -151,21 +142,21 @@ function BoardColumn({
                 {canEdit ? (
                   <>
                     <DropdownMenuItem onClick={onEditRequest}>
-                      <Pencil className="size-4" />
+                      <PencilIcon className="size-4" />
                       <span className="whitespace-nowrap">Edit column</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       disabled={index === 0}
                       onClick={() => onMove(-1)}
                     >
-                      <ArrowLeft className="size-4" />
+                      <ArrowLeftIcon className="size-4" />
                       <span className="whitespace-nowrap">Move left</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       disabled={index === total - 1}
                       onClick={() => onMove(1)}
                     >
-                      <ArrowRight className="size-4" />
+                      <ArrowRightIcon className="size-4" />
                       <span className="whitespace-nowrap">Move right</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -175,21 +166,21 @@ function BoardColumn({
                   disabled={col.terminal || tickets.length === 0}
                   onClick={onArchiveAll}
                 >
-                  <Archive className="size-4" />
+                  <ArchiveIcon className="size-4" />
                   <span className="whitespace-nowrap">Archive all cards</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={tickets.length === 0}
                   onClick={onRemoveAll}
                 >
-                  <Trash2 className="size-4" />
+                  <TrashIcon className="size-4" />
                   <span className="whitespace-nowrap">Remove all cards</span>
                 </DropdownMenuItem>
                 {canEdit ? (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem disabled={!canDelete} onClick={onDelete}>
-                      <Trash2 className="size-4" />
+                      <TrashIcon className="size-4" />
                       <span className="whitespace-nowrap">Delete column</span>
                     </DropdownMenuItem>
                   </>
@@ -396,7 +387,7 @@ export function KanbanBoard({ projectId }: { projectId?: string }) {
               onClick={() => setDialog({ mode: "add" })}
               className="flex h-fit w-64 shrink-0 items-center gap-2 self-start rounded-xl border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/30 hover:text-foreground"
             >
-              <Plus className="size-4" />
+              <PlusIcon className="size-4" />
               Add column
             </button>
           ) : null}

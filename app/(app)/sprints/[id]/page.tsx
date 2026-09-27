@@ -1,6 +1,6 @@
 "use client"
 
-import { Eye, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { EyeIcon, DotsThreeIcon, PencilIcon, TrashIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
 import { use, useEffect, useMemo, useState } from "react"
@@ -131,12 +131,12 @@ function DocEditor({ doc }: { doc: Doc }) {
           >
             {mode === "read" ? (
               <>
-                <Pencil data-icon="inline-start" />
+                <PencilIcon data-icon="inline-start" />
                 Edit
               </>
             ) : (
               <>
-                <Eye data-icon="inline-start" />
+                <EyeIcon data-icon="inline-start" />
                 Preview
               </>
             )}
@@ -145,7 +145,7 @@ function DocEditor({ doc }: { doc: Doc }) {
             <DropdownMenuTrigger
               render={
                 <Button variant="ghost" size="icon">
-                  <MoreHorizontal />
+                  <DotsThreeIcon />
                 </Button>
               }
             />
@@ -157,7 +157,7 @@ function DocEditor({ doc }: { doc: Doc }) {
                   router.push("/sprints")
                 }}
               >
-                <Trash2 className="size-4" />
+                <TrashIcon className="size-4" />
                 Delete
               </DropdownMenuItem>
             </DropdownMenuContent>

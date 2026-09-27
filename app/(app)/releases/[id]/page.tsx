@@ -20,5 +20,5 @@ export default function ReleaseDetailPage({
   const release = releases.find((r) => r.id === id)
   if (!release) notFound()
 
-  return <ReleaseDetail release={release} />
+  return <ReleaseDetail release={release} isLatest={releases[0]?.id === id} />
 }

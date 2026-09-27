@@ -1,6 +1,6 @@
 "use client"
 
-import { NotebookPen } from "lucide-react"
+import { NotePencilIcon } from "@phosphor-icons/react"
 import { AppHeader } from "@/components/app-header"
 import { DocRail } from "@/components/doc-rail"
 import {
@@ -24,7 +24,7 @@ export default function SprintsPage() {
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <NotebookPen />
+                <NotePencilIcon />
               </EmptyMedia>
               <EmptyTitle>Pick a document</EmptyTitle>
               <EmptyDescription>

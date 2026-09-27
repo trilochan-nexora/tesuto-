@@ -1,16 +1,6 @@
 "use client"
 
-import {
-  Bold,
-  Code2,
-  Heading2,
-  Italic,
-  Link2,
-  List,
-  ListOrdered,
-  Quote,
-  Strikethrough,
-} from "lucide-react"
+import { TextBIcon, CodeSimpleIcon, TextHIcon, TextItalicIcon, LinkIcon, ListIcon, ListNumbersIcon, QuotesIcon, TextStrikethroughIcon } from "@phosphor-icons/react"
 import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 
@@ -79,14 +69,14 @@ export function RichTextEditor({
   }
 
   const tools = [
-    { icon: Bold, label: "Bold", cmd: "bold" },
-    { icon: Italic, label: "Italic", cmd: "italic" },
-    { icon: Strikethrough, label: "Strikethrough", cmd: "strikeThrough" },
-    { icon: Heading2, label: "Heading", cmd: "formatBlock:H2" },
-    { icon: Quote, label: "Quote", cmd: "formatBlock:BLOCKQUOTE" },
-    { icon: Code2, label: "Code block", cmd: "formatBlock:PRE" },
-    { icon: List, label: "Bulleted list", cmd: "insertUnorderedList" },
-    { icon: ListOrdered, label: "Numbered list", cmd: "insertOrderedList" },
+    { icon: TextBIcon, label: "Bold", cmd: "bold" },
+    { icon: TextItalicIcon, label: "Italic", cmd: "italic" },
+    { icon: TextStrikethroughIcon, label: "Strikethrough", cmd: "strikeThrough" },
+    { icon: TextHIcon, label: "Heading", cmd: "formatBlock:H2" },
+    { icon: QuotesIcon, label: "Quote", cmd: "formatBlock:BLOCKQUOTE" },
+    { icon: CodeSimpleIcon, label: "Code block", cmd: "formatBlock:PRE" },
+    { icon: ListIcon, label: "Bulleted list", cmd: "insertUnorderedList" },
+    { icon: ListNumbersIcon, label: "Numbered list", cmd: "insertOrderedList" },
   ]
 
   return (
@@ -122,7 +112,7 @@ export function RichTextEditor({
           }}
           className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          <Link2 className="size-4" />
+          <LinkIcon className="size-4" />
         </button>
       </div>
 

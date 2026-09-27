@@ -1,15 +1,6 @@
 "use client"
 
-import {
-  ArrowRight,
-  Download,
-  MoreHorizontal,
-  Pencil,
-  Plug,
-  Plus,
-  SquareKanban,
-  Trash2,
-} from "lucide-react"
+import { ArrowRightIcon, DownloadIcon, DotsThreeIcon, PencilIcon, PlugIcon, PlusIcon, KanbanIcon, TrashIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -56,7 +47,7 @@ export default function ProjectsPage() {
           </p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" render={<Link href="/board" />}>
-              <SquareKanban data-icon="inline-start" />
+              <KanbanIcon data-icon="inline-start" />
               All tickets
             </Button>
             {!importOff ? (
@@ -65,12 +56,12 @@ export default function ProjectsPage() {
                 size="sm"
                 onClick={() => setImporting(true)}
               >
-                <Download data-icon="inline-start" />
+                <DownloadIcon data-icon="inline-start" />
                 Import
               </Button>
             ) : null}
             <Button size="sm" onClick={() => setAdding(true)}>
-              <Plus data-icon="inline-start" />
+              <PlusIcon data-icon="inline-start" />
               Add project
             </Button>
           </div>
@@ -121,7 +112,7 @@ export default function ProjectsPage() {
                               size="icon"
                               className="relative z-10 size-7"
                             >
-                              <MoreHorizontal className="size-4" />
+                              <DotsThreeIcon className="size-4" />
                             </Button>
                           }
                         />
@@ -129,19 +120,19 @@ export default function ProjectsPage() {
                           <DropdownMenuItem
                             onClick={() => setRenaming(project)}
                           >
-                            <Pencil className="size-4" />
+                            <PencilIcon className="size-4" />
                             <span className="whitespace-nowrap">Rename</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             disabled={projects.length <= 1}
                             onClick={() => setDeleting(project)}
                           >
-                            <Trash2 className="size-4" />
+                            <TrashIcon className="size-4" />
                             <span className="whitespace-nowrap">Delete</span>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <ArrowRight className="size-4 text-muted-foreground" />
+                      <ArrowRightIcon className="size-4 text-muted-foreground" />
                     </div>
                   </div>
                 </CardHeader>
@@ -160,7 +151,7 @@ export default function ProjectsPage() {
                     href={`/projects/${project.id}/settings`}
                     className="relative z-10 inline-flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
                   >
-                    <Plug className="size-3.5" />
+                    <PlugIcon className="size-3.5" />
                     Widget token
                   </Link>
                 </CardContent>

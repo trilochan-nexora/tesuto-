@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ImageIcon, MessageSquare } from "lucide-react"
+import { ImageIcon, ChatIcon } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 import { GithubIcon } from "@/components/icons"
 import { PriorityBadge, TypeIcon, UserAvatar } from "@/components/shared"
@@ -83,7 +83,7 @@ export function KanbanCard({
           {ticket.screenshotUrl ? <ImageIcon className="size-3.5" /> : null}
           {commentCount > 0 ? (
             <span className="flex items-center gap-0.5">
-              <MessageSquare className="size-3.5" />
+              <ChatIcon className="size-3.5" />
               {commentCount}
             </span>
           ) : null}

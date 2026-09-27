@@ -1,19 +1,6 @@
 "use client"
 
-import {
-  Bold,
-  Check,
-  Code,
-  Heading,
-  Italic,
-  Link2,
-  List,
-  ListChecks,
-  ListOrdered,
-  Minus,
-  Pilcrow,
-  Quote,
-} from "lucide-react"
+import { TextBIcon, CheckIcon, CodeIcon, TextHIcon, TextItalicIcon, LinkIcon, ListIcon, ListChecksIcon, ListNumbersIcon, MinusIcon, ParagraphIcon, QuotesIcon } from "@phosphor-icons/react"
 import type * as React from "react"
 import { useRef, useState } from "react"
 import { MarkdownLite } from "@/components/markdown-lite"
@@ -36,26 +23,26 @@ type BlockDef = {
     | "wikilink"
   label: string
   desc: string
-  icon: typeof Pilcrow
+  icon: typeof ParagraphIcon
 }
 
 const BLOCKS: BlockDef[] = [
-  { id: "text", label: "Text", desc: "Plain text", icon: Pilcrow },
-  { id: "h1", label: "Heading 1", desc: "Large section heading", icon: Heading },
-  { id: "h2", label: "Heading 2", desc: "Medium section heading", icon: Heading },
-  { id: "h3", label: "Heading 3", desc: "Small section heading", icon: Heading },
-  { id: "ul", label: "Bulleted list", desc: "Simple bullet list", icon: List },
+  { id: "text", label: "Text", desc: "Plain text", icon: ParagraphIcon },
+  { id: "h1", label: "Heading 1", desc: "Large section heading", icon: TextHIcon },
+  { id: "h2", label: "Heading 2", desc: "Medium section heading", icon: TextHIcon },
+  { id: "h3", label: "Heading 3", desc: "Small section heading", icon: TextHIcon },
+  { id: "ul", label: "Bulleted list", desc: "Simple bullet list", icon: ListIcon },
   {
     id: "ol",
     label: "Numbered list",
     desc: "Automatically increments",
-    icon: ListOrdered,
+    icon: ListNumbersIcon,
   },
-  { id: "task", label: "To-do list", desc: "Track tasks with checkboxes", icon: ListChecks },
-  { id: "quote", label: "Quote", desc: "Capture a citation", icon: Quote },
-  { id: "code", label: "Code block", desc: "Fenced code snippet", icon: Code },
-  { id: "divider", label: "Divider", desc: "Horizontal line", icon: Minus },
-  { id: "wikilink", label: "Link a doc", desc: "[[Document title]]", icon: Link2 },
+  { id: "task", label: "To-do list", desc: "Track tasks with checkboxes", icon: ListChecksIcon },
+  { id: "quote", label: "Quote", desc: "Capture a citation", icon: QuotesIcon },
+  { id: "code", label: "Code block", desc: "Fenced code snippet", icon: CodeIcon },
+  { id: "divider", label: "Divider", desc: "Horizontal line", icon: MinusIcon },
+  { id: "wikilink", label: "Link a doc", desc: "[[Document title]]", icon: LinkIcon },
 ]
 
 type SlashMenu = {
@@ -440,19 +427,19 @@ export function MarkdownField({
     }
   }
 
-  const tools: { icon: typeof Bold; label: string; cmd: string }[] = [
-    { icon: Heading, label: "Heading 1", cmd: "h1" },
-    { icon: Heading, label: "Heading 2", cmd: "h2" },
-    { icon: Heading, label: "Heading 3", cmd: "h3" },
-    { icon: Bold, label: "Bold", cmd: "b" },
-    { icon: Italic, label: "Italic", cmd: "i" },
-    { icon: Quote, label: "Quote", cmd: "quote" },
-    { icon: Code, label: "Inline code", cmd: "code" },
-    { icon: Link2, label: "Link", cmd: "link" },
-    { icon: List, label: "Bulleted list", cmd: "ul" },
-    { icon: ListOrdered, label: "Numbered list", cmd: "ol" },
-    { icon: ListChecks, label: "Task list", cmd: "task" },
-    { icon: Minus, label: "Divider", cmd: "divider" },
+  const tools: { icon: typeof TextBIcon; label: string; cmd: string }[] = [
+    { icon: TextHIcon, label: "Heading 1", cmd: "h1" },
+    { icon: TextHIcon, label: "Heading 2", cmd: "h2" },
+    { icon: TextHIcon, label: "Heading 3", cmd: "h3" },
+    { icon: TextBIcon, label: "Bold", cmd: "b" },
+    { icon: TextItalicIcon, label: "Italic", cmd: "i" },
+    { icon: QuotesIcon, label: "Quote", cmd: "quote" },
+    { icon: CodeIcon, label: "Inline code", cmd: "code" },
+    { icon: LinkIcon, label: "Link", cmd: "link" },
+    { icon: ListIcon, label: "Bulleted list", cmd: "ul" },
+    { icon: ListNumbersIcon, label: "Numbered list", cmd: "ol" },
+    { icon: ListChecksIcon, label: "Task list", cmd: "task" },
+    { icon: MinusIcon, label: "Divider", cmd: "divider" },
   ]
 
   // ---- menu position --------------------------------------------------------
@@ -561,7 +548,7 @@ export function MarkdownField({
                       {b.desc}
                     </span>
                   </span>
-                  {i === highlight ? <Check className="size-3.5" /> : null}
+                  {i === highlight ? <CheckIcon className="size-3.5" /> : null}
                 </button>
               ))}
             </div>

@@ -364,23 +364,24 @@
   document.documentElement.appendChild(host)
   const root = host.attachShadow({ mode: "open" })
 
-  const PURPLE = "#7c5cff"
+  const ACCENT = "#18181b"
   root.innerHTML = `
 <style>
   :host { all: initial }
   * { box-sizing: border-box; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif }
   .wrap { --bg:#0d0d10; --panel:#151519; --card:#1b1b21; --line:#26262e; --text:#f4f4f5;
-    --muted:#a1a1aa; --purple:${PURPLE}; --purple-soft:rgba(124,92,255,.16);
+    --muted:#a1a1aa; --accent:#f4f4f5; --accent-ink:#18181b; --accent-soft:rgba(244,244,245,.14);
     position: fixed; bottom: 20px; right: 20px; pointer-events: auto; color: var(--text) }
   .wrap[data-theme="light"] { --bg:#ffffff; --panel:#f7f7f8; --card:#ffffff; --line:#e4e4e7;
-    --text:#18181b; --muted:#71717a }
+    --text:#18181b; --muted:#71717a; --accent:#18181b; --accent-ink:#ffffff;
+    --accent-soft:rgba(24,24,27,.08) }
 
   /* The launcher is a half-circle flush against whichever edge it's docked
      to — it reads as growing out of the edge rather than a circle floating
      near it. Which two corners round off (and which border drops out, so
      there's no seam at the flush side) depends on the docked edge. */
   .fab { position: fixed; width: 44px; height: 44px;
-    border: 1px solid ${PURPLE}; background: var(--bg); color: ${PURPLE}; cursor: grab;
+    border: 1px solid var(--accent); background: var(--bg); color: var(--accent); cursor: grab;
     pointer-events: auto; display: grid; place-items: center; box-shadow: 0 10px 30px rgba(0,0,0,.35);
     touch-action: none; user-select: none }
   .fab.dragging { cursor: grabbing; box-shadow: 0 16px 40px rgba(0,0,0,.45) }
@@ -395,7 +396,7 @@
     background: var(--bg); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
     box-shadow: 0 24px 60px rgba(0,0,0,.4) }
 
-  .head { background: linear-gradient(160deg, #8b6dff, ${PURPLE}); color: #fff; padding: 18px 18px 14px }
+  .head { background: linear-gradient(160deg, #3f3f46, ${ACCENT}); color: #fff; padding: 18px 18px 14px }
   .head .row { display: flex; align-items: flex-start; gap: 10px }
   .head .ttl { min-width: 0; flex: 1 }
   .head h1 { margin: 0; font-size: 19px; font-weight: 700; line-height: 1.2;
@@ -418,26 +419,26 @@
   .tabs button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px;
     font-weight: 600; padding: 12px 8px; display: inline-flex; align-items: center; gap: 6px;
     border-bottom: 2px solid transparent; margin-bottom: -1px }
-  .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--purple) }
+  .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent) }
   .tabs svg { width: 14px; height: 14px }
-  .tabs .count { background: var(--card); color: var(--muted); border: 1px solid var(--line);
-    font-size: 11px; border-radius: 999px; padding: 0 6px; min-width: 18px; text-align: center }
+  .tabs .count { background: #ef4444; color: #fff; border: none;
+    font-size: 11px; font-weight: 700; border-radius: 999px; padding: 0 6px; min-width: 18px; text-align: center }
 
-  .body { flex: 1; overflow-y: auto; padding: 14px }
+  .body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px }
 
   .actioncard { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
     padding: 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--card);
     color: var(--text); cursor: pointer; margin-bottom: 12px }
-  .actioncard.primary { background: var(--purple); border-color: transparent; color: #fff }
+  .actioncard.primary { background: var(--accent); border-color: transparent; color: var(--accent-ink) }
   .actioncard .ico { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
-    background: var(--purple-soft); flex: none }
-  .actioncard.primary .ico { background: rgba(255,255,255,.18) }
+    background: var(--accent-soft); flex: none }
+  .actioncard.primary .ico { background: color-mix(in srgb, var(--accent-ink) 18%, transparent) }
   .actioncard .ico svg { width: 20px; height: 20px }
   .actioncard h3 { margin: 0; font-size: 15px; font-weight: 700 }
-  .actioncard.primary h3 { color: #fff }
-  .actioncard:not(.primary) h3 { color: var(--purple) }
+  .actioncard.primary h3 { color: var(--accent-ink) }
+  .actioncard:not(.primary) h3 { color: var(--accent) }
   .actioncard p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted) }
-  .actioncard.primary p { color: rgba(255,255,255,.8) }
+  .actioncard.primary p { color: color-mix(in srgb, var(--accent-ink) 80%, transparent) }
   .actioncard .chev { margin-left: auto; color: currentColor; opacity: .6 }
 
   .issue { display: flex; gap: 10px; width: 100%; text-align: left; padding: 11px 10px; border: none;
@@ -453,7 +454,7 @@
   .msg .bub { display: inline-block; background: var(--card); border-radius: 12px; padding: 9px 12px;
     font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; max-width: 88% }
   .msg.me { align-items: flex-end }
-  .msg.me .bub { background: var(--purple); color: #fff }
+  .msg.me .bub { background: var(--accent); color: var(--accent-ink) }
   .msg .by { font-size: 11.5px; color: var(--muted); margin-top: 5px; display: flex; align-items: center; gap: 6px }
   .msg .av { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
     font-size: 8px; font-weight: 700; color: #fff }
@@ -465,19 +466,29 @@
   .metaedit label { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: var(--muted); width: 62px }
   .metaedit select { flex: 1; background: var(--card); color: var(--text); border: 1px solid var(--line);
     border-radius: 8px; padding: 7px 9px; font-size: 13px; font-family: inherit }
-  .metaedit .shot { width: 52px; height: 38px; border-radius: 6px; border: 1px solid var(--line);
-    object-fit: cover; background: var(--card); cursor: pointer; flex: none }
+  .shotrow { display: block; margin-bottom: 12px }
+  .shotrow .shot { display: block; width: 100%; max-height: 220px; border-radius: 8px;
+    border: 1px solid var(--line); object-fit: contain; background: var(--card); cursor: zoom-in }
   .metaedit a, .metaedit code { flex: 1; min-width: 0; font-size: 12px; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap }
-  .metaedit a { color: var(--purple); text-decoration: none }
+  .metaedit a { color: var(--accent); text-decoration: none }
   .metaedit code { color: var(--muted); font-family: ui-monospace, SFMono-Regular, monospace }
+  .ctxbox { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--card);
+    border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px }
+  .ctxbox .envline { font-size: 11.5px; color: var(--muted) }
+  .ctxbox .ctxtitle { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: var(--muted);
+    text-transform: uppercase }
+  .ctxbox code.errline { display: block; font-size: 11px; font-family: ui-monospace, SFMono-Regular, monospace;
+    color: #ef4444; white-space: pre-wrap; word-break: break-word }
+  .ctxbox code.reqline { display: block; font-size: 11px; font-family: ui-monospace, SFMono-Regular, monospace;
+    color: var(--muted); white-space: pre-wrap; word-break: break-word }
 
   .compose { display: flex; align-items: center; gap: 8px; padding: 10px 12px }
   .compose .att { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px }
-  .compose input { flex: 1; background: var(--card); color: var(--text); border: 1px solid var(--purple);
+  .compose input { flex: 1; background: var(--card); color: var(--text); border: 1px solid var(--accent);
     border-radius: 9px; padding: 10px 12px; font-size: 13px; font-family: inherit; outline: none }
-  .compose .send { width: 38px; height: 38px; border-radius: 9px; border: none; background: var(--purple);
-    color: #fff; cursor: pointer; display: grid; place-items: center; flex: none }
+  .compose .send { width: 38px; height: 38px; border-radius: 9px; border: none; background: var(--accent);
+    color: var(--accent-ink); cursor: pointer; display: grid; place-items: center; flex: none }
   .compose .send svg { width: 16px; height: 16px }
 
   .userbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px;
@@ -500,27 +511,60 @@
   .form textarea { resize: vertical; min-height: 56px }
   .form .btnrow { display: flex; gap: 8px; margin-top: 14px }
   .btn { flex: 1; padding: 10px; border-radius: 9px; border: none; cursor: pointer; font-size: 13px; font-weight: 700 }
-  .btn.primary { background: var(--purple); color: #fff }
+  .btn.primary { background: var(--accent); color: var(--accent-ink) }
   .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text) }
   .btn[disabled] { opacity: .55; cursor: default }
   .shot-status { margin-top: 3px; padding: 10px; border-radius: 8px; background: var(--card); color: var(--muted); font-size: 12px }
   .shot-img { display: block; width: 100%; border-radius: 8px; border: 1px solid var(--line); margin-top: 4px }
-  .linkbtn { background: none; border: none; color: var(--purple); font-size: 11.5px; font-weight: 700; cursor: pointer; margin-top: 6px; padding: 0 }
+  .linkbtn { background: none; border: none; color: var(--accent); font-size: 11.5px; font-weight: 700; cursor: pointer; margin-top: 6px; padding: 0 }
   .note { font-size: 11px; color: var(--muted); margin-top: 10px }
   .err { color: #f87171 }
 
-  /* page overlays for pick / pin */
-  .pk-overlay { position: fixed; border: 2px solid ${PURPLE}; background: rgba(124,92,255,.12);
-    pointer-events: none; border-radius: 4px; transition: all .04s linear; z-index: 2147483001 }
-  .pk-tag { position: absolute; top: -22px; left: 0; background: ${PURPLE}; color: #fff;
-    font: 500 11px/1 ui-monospace, monospace; padding: 3px 5px; border-radius: 3px; white-space: nowrap }
+  /* page overlays for pick / pin — one brand color throughout; the picked
+     element's kind (interactive / text / structure) reads from the border's
+     PATTERN (solid / dashed / dotted), not a rainbow of hues */
+  .pk-overlay { position: fixed; border: 2px solid ${ACCENT}; pointer-events: none; border-radius: 4px;
+    transition: top .04s linear, left .04s linear, width .04s linear, height .04s linear;
+    z-index: 2147483001; animation: pk-pulse 1.6s ease-in-out infinite }
+  .pk-overlay[data-kind="text"] { border-style: dashed }
+  .pk-overlay[data-kind="structure"] { border-style: dotted }
+  .pk-corner { position: absolute; width: 10px; height: 10px; border-color: ${ACCENT}; pointer-events: none }
+  .pk-corner.tl { top: -4px; left: -4px; border-top: 2px solid; border-left: 2px solid; border-radius: 3px 0 0 0 }
+  .pk-corner.tr { top: -4px; right: -4px; border-top: 2px solid; border-right: 2px solid; border-radius: 0 3px 0 0 }
+  .pk-corner.bl { bottom: -4px; left: -4px; border-bottom: 2px solid; border-left: 2px solid; border-radius: 0 0 0 3px }
+  .pk-corner.br { bottom: -4px; right: -4px; border-bottom: 2px solid; border-right: 2px solid; border-radius: 0 0 3px 0 }
+  @keyframes pk-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .68 } }
+  @media (prefers-reduced-motion: reduce) {
+    .pk-overlay { animation: none }
+  }
+  .pk-tag { position: absolute; top: -24px; left: 0; display: flex; align-items: center; gap: 5px;
+    background: #18181b; color: #fff; font: 500 11px/1 ui-monospace, monospace; padding: 4px 7px 4px 6px;
+    border-radius: 4px; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,.35) }
+  .pk-tag .pk-dot { width: 6px; height: 6px; border-radius: 50%; background: ${ACCENT}; flex-shrink: 0 }
+  .pk-tag .pk-dot[data-kind="text"] { width: 5px; height: 5px; background: transparent; border: 1.5px solid ${ACCENT} }
+  .pk-tag .pk-dot[data-kind="structure"] { border-radius: 1.5px }
+  .pk-tag .pk-dim { color: #a1a1aa; font-weight: 400 }
   .pk-hint { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background: #18181b; color: #fff;
     font-size: 12.5px; padding: 8px 14px; border-radius: 999px; pointer-events: none; z-index: 2147483002;
     box-shadow: 0 8px 24px rgba(0,0,0,.3) }
   .pin-mark { position: fixed; width: 28px; height: 28px; margin: -28px 0 0 -14px; z-index: 2147483001; pointer-events: none;
-    color: ${PURPLE}; animation: pin-drop .18s cubic-bezier(.2,.8,.3,1) }
+    color: ${ACCENT}; animation: pin-drop .18s cubic-bezier(.2,.8,.3,1) }
   .pin-mark svg { width: 28px; height: 28px; display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)) }
   @keyframes pin-drop { from { transform: translateY(-8px) scale(.7); opacity: 0 } to { transform: none; opacity: 1 } }
+
+  /* Full-size screenshot preview. window.open() can't be used here — most
+     browsers refuse to navigate a new tab to a data: URL and silently land
+     on about:blank, so the full image opens in-page instead. */
+  .img-lightbox { position: fixed; inset: 0; z-index: 2147483003; background: rgba(0,0,0,.78);
+    display: flex; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out;
+    pointer-events: auto }
+  .img-lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5); cursor: default }
+  .img-lightbox .close { position: fixed; top: 16px; right: 16px; width: 36px; height: 36px;
+    border-radius: 50%; border: none; background: rgba(255,255,255,.14); color: #fff;
+    display: grid; place-items: center; cursor: pointer }
+  .img-lightbox .close:hover { background: rgba(255,255,255,.24) }
+  .img-lightbox .close svg { width: 18px; height: 18px }
 </style>`
 
   /* -------------------------------- icons -------------------------------- */
@@ -1309,13 +1353,13 @@
 
     const c2 = document.createElement("button")
     c2.className = "actioncard"
-    c2.innerHTML = `<span class="ico">${I.pin}</span><span><h3>Pin anywhere</h3><p>Drop a pin at any point</p></span><span class="chev">${I.chevR}</span>`
+    c2.innerHTML = `<span class="ico" style="color:#3b82f6;background:rgba(59,130,246,.14)">${I.pin}</span><span><h3>Pin anywhere</h3><p>Drop a pin at any point</p></span><span class="chev">${I.chevR}</span>`
     c2.addEventListener("click", startPin)
     body.appendChild(c2)
 
     const c3 = document.createElement("button")
     c3.className = "actioncard"
-    c3.innerHTML = `<span class="ico">${I.rec}</span><span><h3>Record video</h3><p>Capture your screen, no element needed</p></span><span class="chev">${I.chevR}</span>`
+    c3.innerHTML = `<span class="ico" style="color:#ef4444;background:rgba(239,68,68,.14)">${I.rec}</span><span><h3>Record video</h3><p>Capture your screen, no element needed</p></span><span class="chev">${I.chevR}</span>`
     c3.addEventListener("click", () => {
       void startDirectRecording()
     })
@@ -1350,7 +1394,7 @@
   function dotFor(status) {
     const col = state.columns.find((c) => c.id === status)
     if (!col) return "var(--muted)"
-    return col.terminal ? "#10b981" : status === "in_progress" ? "#f59e0b" : PURPLE
+    return col.terminal ? "#10b981" : status === "in_progress" ? "#f59e0b" : ACCENT
   }
 
   /* ---------------------------- issue detail --------------------------- */
@@ -1410,7 +1454,7 @@
         },
         title: it.title,
         sub: `${it.key} · ${it.statusLabel}`,
-        idColor: (it.reporter && it.reporter.color) || PURPLE,
+        idColor: (it.reporter && it.reporter.color) || ACCENT,
       }),
     )
 
@@ -1449,7 +1493,7 @@
     me.innerHTML = `
       ${
         it.screenshotUrl
-          ? `<div class="r"><label>Shot</label><img class="shot" alt="screenshot" src="${escapeHtml(
+          ? `<div class="shotrow"><img class="shot" alt="screenshot" src="${escapeHtml(
               it.screenshotUrl,
             )}" /></div>`
           : ""
@@ -1487,20 +1531,56 @@
     foot.appendChild(me)
     const shot = me.querySelector(".shot")
     if (shot) {
-      shot.addEventListener("click", () =>
-        window.open(it.screenshotUrl, "_blank"),
-      )
+      shot.addEventListener("click", () => openImageLightbox(it.screenshotUrl))
       shot.addEventListener("error", () => {
-        const r = shot.closest(".r")
+        const r = shot.closest(".shotrow")
         if (r) r.remove()
       })
     }
+    // Screenshot + context live in the scrolling body, not the fixed footer —
+    // in the footer they ate the panel's height and nothing could scroll.
+    const shotRow = me.querySelector(".shotrow")
+    if (shotRow) body.insertBefore(shotRow, msgs)
     me.querySelector("#ie-prio").addEventListener("change", (e) =>
       patchIssue({ priority: e.target.value }),
     )
     me.querySelector("#ie-status").addEventListener("change", (e) =>
       patchIssue({ status: e.target.value }),
     )
+
+    // Everything the reporter's browser saw at the moment of filing — the
+    // whole point of a widget report over a Slack message: no "what browser
+    // were you on?" back-and-forth before anyone can start fixing it.
+    const ctx = it.context
+    if (
+      ctx &&
+      (ctx.browser ||
+        ctx.os ||
+        ctx.viewport ||
+        (ctx.consoleErrors && ctx.consoleErrors.length) ||
+        (ctx.failedRequests && ctx.failedRequests.length))
+    ) {
+      const box = document.createElement("div")
+      box.className = "ctxbox"
+      const envParts = [ctx.browser, ctx.os, ctx.viewport].filter(Boolean)
+      box.innerHTML = `
+        ${envParts.length ? `<span class="envline">${escapeHtml(envParts.join(" · "))}</span>` : ""}
+        ${
+          ctx.consoleErrors && ctx.consoleErrors.length
+            ? `<span class="ctxtitle">Console errors</span>${ctx.consoleErrors
+                .map((l) => `<code class="errline">${escapeHtml(l)}</code>`)
+                .join("")}`
+            : ""
+        }
+        ${
+          ctx.failedRequests && ctx.failedRequests.length
+            ? `<span class="ctxtitle">Failed requests</span>${ctx.failedRequests
+                .map((l) => `<code class="reqline">${escapeHtml(l)}</code>`)
+                .join("")}`
+            : ""
+        }`
+      body.insertBefore(box, msgs)
+    }
 
     const cp = document.createElement("form")
     cp.className = "compose"
@@ -1550,7 +1630,7 @@
     d.innerHTML = `<span class="bub">${escapeHtml(body)}</span>
       <span class="by">${
         author
-          ? `<span class="av" style="background:${author.color || PURPLE}">${initials(
+          ? `<span class="av" style="background:${author.color || ACCENT}">${initials(
               author.name,
             )}</span>${escapeHtml(author.name)} · `
           : ""
@@ -1570,10 +1650,41 @@
   const pkOverlay = document.createElement("div")
   pkOverlay.className = "pk-overlay"
   pkOverlay.style.display = "none"
+  for (const corner of ["tl", "tr", "bl", "br"]) {
+    const c = document.createElement("div")
+    c.className = `pk-corner ${corner}`
+    pkOverlay.appendChild(c)
+  }
   const pkTag = document.createElement("div")
   pkTag.className = "pk-tag"
+  const pkTagDot = document.createElement("span")
+  pkTagDot.className = "pk-dot"
+  const pkTagName = document.createElement("span")
+  const pkTagDim = document.createElement("span")
+  pkTagDim.className = "pk-dim"
+  pkTag.append(pkTagDot, pkTagName, pkTagDim)
   pkOverlay.appendChild(pkTag)
   root.appendChild(pkOverlay)
+  // Reticle stays one brand color; the picked element's kind reads from the
+  // border PATTERN instead — solid (interactive), dashed (text), dotted
+  // (structure) — so it says what's under it without turning into a rainbow.
+  function pickCategory(el) {
+    const tag = el.tagName.toLowerCase()
+    if (/^(button|a|input|select|textarea|summary|option)$/.test(tag))
+      return "interactive"
+    const role = el.getAttribute && el.getAttribute("role")
+    if (role === "button" || role === "link") return "interactive"
+    try {
+      if (getComputedStyle(el).cursor === "pointer") return "interactive"
+    } catch {}
+    if (
+      /^(h1|h2|h3|h4|h5|h6|p|span|label|li|td|th|strong|em|small|blockquote)$/.test(
+        tag,
+      )
+    )
+      return "text"
+    return "structure"
+  }
   let pkHint = null
   let pinMark = null
   let cursorStyle = null
@@ -1674,6 +1785,32 @@
     if (pkHint) pkHint.style.display = "none"
   }
 
+  function openImageLightbox(src) {
+    const overlay = document.createElement("div")
+    overlay.className = "img-lightbox"
+    const img = document.createElement("img")
+    img.src = src
+    img.alt = "Screenshot"
+    const close = document.createElement("button")
+    close.type = "button"
+    close.className = "close"
+    close.setAttribute("aria-label", "Close")
+    close.innerHTML = I.x
+    overlay.append(img, close)
+    function dismiss() {
+      overlay.remove()
+      document.removeEventListener("keydown", onKey)
+    }
+    function onKey(e) {
+      if (e.key === "Escape") dismiss()
+    }
+    overlay.addEventListener("click", dismiss)
+    img.addEventListener("click", (e) => e.stopPropagation())
+    close.addEventListener("click", dismiss)
+    document.addEventListener("keydown", onKey)
+    root.appendChild(overlay)
+  }
+
   function startPick() {
     state.view = "pick"
     panel.style.display = "none"
@@ -1717,12 +1854,19 @@
   }
   function paint(el) {
     const r = el.getBoundingClientRect()
+    const kind = pickCategory(el)
     pkOverlay.style.display = "block"
+    pkOverlay.dataset.kind = kind
     pkOverlay.style.top = r.top + "px"
     pkOverlay.style.left = r.left + "px"
     pkOverlay.style.width = r.width + "px"
     pkOverlay.style.height = r.height + "px"
-    pkTag.textContent = selectorFor(el)
+    // Keep the tag inside the box near the top edge — not above it — when
+    // the element sits too close to the viewport top for the label to fit.
+    pkTag.style.top = r.top > 28 ? "-24px" : "4px"
+    pkTagDot.dataset.kind = kind
+    pkTagName.textContent = selectorFor(el)
+    pkTagDim.textContent = `${Math.round(r.width)}×${Math.round(r.height)}`
   }
   function onPickKey(e) {
     if (e.key === "Escape") {

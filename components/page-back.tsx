@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeftIcon } from "@phosphor-icons/react/ssr"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
@@ -20,7 +20,7 @@ export function PageBack({
         className,
       )}
     >
-      <ArrowLeft className="size-4" />
+      <ArrowLeftIcon className="size-4" />
       {label}
     </Link>
   )

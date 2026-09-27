@@ -1,18 +1,7 @@
 "use client"
 
 import { toPng } from "html-to-image"
-import {
-  Bug,
-  Check,
-  CircleCheck,
-  Crosshair,
-  KeyRound,
-  Loader2,
-  LogIn,
-  MousePointer2,
-  TriangleAlert,
-  X,
-} from "lucide-react"
+import { BugIcon, CheckIcon, CheckCircleIcon, CrosshairIcon, KeyIcon, CircleNotchIcon, SignInIcon, CursorIcon, WarningIcon, XIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -46,12 +35,23 @@ import {
   type WidgetTelemetry,
 } from "@/lib/widget-scenes"
 
+type PickCategory = "interactive" | "text" | "structure"
+
 type Picked = {
   selector: string
   tag: string
   text: string
+  category: PickCategory
   rect: { top: number; left: number; width: number; height: number }
   frac: { x: number; y: number; w: number; h: number }
+}
+
+// One brand color throughout — the picked element's kind reads from the
+// border PATTERN (solid / dashed / dotted), not a different hue per kind.
+const PICK_BORDER: Record<PickCategory, string> = {
+  interactive: "border-solid",
+  text: "border-dashed",
+  structure: "border-dotted",
 }
 
 type Filed = { key: string; id: string; title: string; project: string }
@@ -172,6 +172,7 @@ export default function WidgetPage() {
       selector,
       tag: el.tagName.toLowerCase(),
       text: (el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 60),
+      category: pickCategory(el),
       rect: { top, left, width: r.width, height: r.height },
       frac: {
         x: fr.width ? left / fr.width : 0,
@@ -551,7 +552,7 @@ export default function WidgetPage() {
             htmlFor="widget-token"
             className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
           >
-            <KeyRound className="size-3.5" />
+            <KeyIcon className="size-3.5" />
             Project token
           </label>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -564,12 +565,12 @@ export default function WidgetPage() {
             />
             {notSignedIn ? (
               <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                <LogIn className="size-4" />
+                <SignInIcon className="size-4" />
                 Simulating a signed-out visitor
               </span>
             ) : resolved ? (
               <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
-                <CircleCheck className="size-4" />
+                <CheckCircleIcon className="size-4" />
                 Authenticated as{" "}
                 <strong className="font-medium">{resolved.name}</strong>
               </span>
@@ -647,7 +648,10 @@ export default function WidgetPage() {
           {picking && hover ? (
             <div
               aria-hidden
-              className="pointer-events-none absolute z-10 rounded-md border-2 border-primary bg-primary/10"
+              className={cn(
+                "motion-safe:animate-pulse pointer-events-none absolute z-10 rounded-sm border-2 border-brand text-brand transition-all duration-75",
+                PICK_BORDER[hover.category],
+              )}
               style={{
                 top: hover.rect.top,
                 left: hover.rect.left,
@@ -655,8 +659,16 @@ export default function WidgetPage() {
                 height: hover.rect.height,
               }}
             >
-              <span className="absolute -top-6 left-0 whitespace-nowrap rounded bg-primary px-1.5 py-0.5 font-mono text-[11px] text-primary-foreground">
+              <PickCorners />
+              <span
+                className="absolute left-0 flex items-center gap-1.5 whitespace-nowrap rounded bg-foreground px-1.5 py-0.5 font-mono text-[11px] font-medium text-background shadow-lg"
+                style={{ top: hover.rect.top > 28 ? -24 : 4 }}
+              >
+                <PickDot category={hover.category} />
                 {hover.selector}
+                <span className="text-background/60">
+                  {Math.round(hover.rect.width)}×{Math.round(hover.rect.height)}
+                </span>
               </span>
             </div>
           ) : null}
@@ -664,14 +676,19 @@ export default function WidgetPage() {
           {picked && !shot ? (
             <div
               aria-hidden
-              className="pointer-events-none absolute z-10 rounded-md border-2 border-primary"
+              className={cn(
+                "pointer-events-none absolute z-10 rounded-sm border-2 border-brand text-brand",
+                PICK_BORDER[picked.category],
+              )}
               style={{
                 top: picked.rect.top,
                 left: picked.rect.left,
                 width: picked.rect.width,
                 height: picked.rect.height,
               }}
-            />
+            >
+              <PickCorners />
+            </div>
           ) : null}
 
           {!picked ? (
@@ -686,17 +703,17 @@ export default function WidgetPage() {
                   "absolute bottom-5 right-5 z-20 inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium shadow-lg transition-colors",
                   picking
                     ? "bg-foreground text-background"
-                    : "bg-primary text-primary-foreground hover:bg-primary/90",
+                    : "bg-brand text-brand-foreground hover:bg-brand/90",
                 )}
               >
                 {picking ? (
                   <>
-                    <X className="size-4" />
+                    <XIcon className="size-4" />
                     Cancel
                   </>
                 ) : (
                   <>
-                    <Crosshair className="size-4" />
+                    <CrosshairIcon className="size-4" />
                     Report a bug
                   </>
                 )}
@@ -713,7 +730,7 @@ export default function WidgetPage() {
                   }}
                 >
                   <div className="flex items-center gap-1.5 text-sm font-medium">
-                    <LogIn className="size-4" />
+                    <SignInIcon className="size-4" />
                     Sign in to Tesuto
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -754,7 +771,7 @@ export default function WidgetPage() {
                 onClick={() => setSigningIn(true)}
                 className="absolute bottom-5 right-5 z-20 flex items-center gap-2 rounded-full bg-foreground/90 px-4 py-2.5 text-sm font-medium text-background shadow-lg transition-colors hover:bg-foreground"
               >
-                <LogIn className="size-4" />
+                <SignInIcon className="size-4" />
                 Sign in to Tesuto to report
               </button>
             )
@@ -765,7 +782,7 @@ export default function WidgetPage() {
         {capturedCount > 0 ? (
           <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-card p-4 text-xs ring-1 ring-foreground/10">
             <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
-              <MousePointer2 className="size-3.5" />
+              <CursorIcon className="size-3.5" />
               The widget has already captured {capturedCount} signal
               {capturedCount === 1 ? "" : "s"} from this page
             </span>
@@ -774,7 +791,7 @@ export default function WidgetPage() {
                 key={line}
                 className="flex items-start gap-1.5 font-mono text-destructive"
               >
-                <TriangleAlert className="mt-0.5 size-3 shrink-0" />
+                <WarningIcon className="mt-0.5 size-3 shrink-0" />
                 {line}
               </code>
             ))}
@@ -790,7 +807,7 @@ export default function WidgetPage() {
         {picked ? (
           <div className="rounded-xl border border-border bg-card p-5 ring-1 ring-foreground/10">
             <div className="mb-4 flex flex-wrap items-center gap-2">
-              <Bug className="size-4 text-primary" />
+              <BugIcon className="size-4 text-brand" />
               <span className="text-sm font-medium">New report</span>
               <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
                 {picked.selector}
@@ -801,7 +818,7 @@ export default function WidgetPage() {
                 className="ml-auto text-muted-foreground hover:text-foreground"
                 aria-label="Discard report"
               >
-                <X className="size-4" />
+                <XIcon className="size-4" />
               </button>
             </div>
 
@@ -809,7 +826,7 @@ export default function WidgetPage() {
               <div>
                 {capturing ? (
                   <div className="flex h-40 items-center justify-center rounded-xl bg-muted/50 text-sm text-muted-foreground">
-                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    <CircleNotchIcon className="mr-2 size-4 animate-spin" />
                     Capturing screenshot…
                   </div>
                 ) : shot ? (
@@ -967,7 +984,7 @@ export default function WidgetPage() {
                   onClick={submit}
                   disabled={capturing}
                 >
-                  <Check data-icon="inline-start" />
+                  <CheckIcon data-icon="inline-start" />
                   File ticket
                 </Button>
               </div>
@@ -984,7 +1001,7 @@ export default function WidgetPage() {
             <ul className="flex flex-col divide-y divide-border">
               {filed.map((f) => (
                 <li key={f.id} className="flex items-center gap-3 py-2 text-sm">
-                  <CircleCheck className="size-4 shrink-0 text-emerald-500" />
+                  <CheckCircleIcon className="size-4 shrink-0 text-emerald-500" />
                   <Link
                     href={`/tickets/${f.id}`}
                     className="min-w-0 flex-1 truncate hover:underline"
@@ -1046,12 +1063,73 @@ export default function WidgetPage() {
   )
 }
 
+/** Same brand dot for every kind, shaped differently — filled circle
+ * (interactive), ringed circle (text), filled square (structure) — echoing
+ * the border pattern instead of switching color. */
+function PickDot({ category }: { category: PickCategory }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "size-1.5 shrink-0",
+        category === "text"
+          ? "rounded-full border-[1.5px] border-brand bg-transparent"
+          : category === "structure"
+            ? "rounded-[1.5px] bg-brand"
+            : "rounded-full bg-brand",
+      )}
+    />
+  )
+}
+
+/** Camera-reticle corner brackets, colored via the parent's `currentColor`. */
+function PickCorners() {
+  return (
+    <>
+      <span
+        aria-hidden
+        className="absolute -top-1 -left-1 size-2.5 rounded-tl border-t-2 border-l-2 border-current"
+      />
+      <span
+        aria-hidden
+        className="absolute -top-1 -right-1 size-2.5 rounded-tr border-t-2 border-r-2 border-current"
+      />
+      <span
+        aria-hidden
+        className="absolute -bottom-1 -left-1 size-2.5 rounded-bl border-b-2 border-l-2 border-current"
+      />
+      <span
+        aria-hidden
+        className="absolute -right-1 -bottom-1 size-2.5 rounded-br border-r-2 border-b-2 border-current"
+      />
+    </>
+  )
+}
+
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
     <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">
       {children}
     </kbd>
   )
+}
+
+function pickCategory(el: HTMLElement): PickCategory {
+  const tag = el.tagName.toLowerCase()
+  if (/^(button|a|input|select|textarea|summary|option)$/.test(tag)) {
+    return "interactive"
+  }
+  const role = el.getAttribute("role")
+  if (role === "button" || role === "link") return "interactive"
+  if (getComputedStyle(el).cursor === "pointer") return "interactive"
+  if (
+    /^(h1|h2|h3|h4|h5|h6|p|span|label|li|td|th|strong|em|small|blockquote)$/.test(
+      tag,
+    )
+  ) {
+    return "text"
+  }
+  return "structure"
 }
 
 function structuralSelector(el: HTMLElement) {

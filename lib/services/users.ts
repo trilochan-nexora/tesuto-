@@ -2,6 +2,7 @@ import { HttpError } from "@/lib/api"
 import { createSession } from "@/lib/auth"
 import { decryptToken, encryptToken } from "@/lib/crypto"
 import { prisma } from "@/lib/db"
+import { allowedEmailDomains } from "@/lib/env"
 import { PROJECT_COLORS } from "@/lib/types"
 
 /**
@@ -38,6 +39,21 @@ export async function listUsers() {
 export async function signIn(input: { name: string; email: string }) {
   const email = input.email.trim().toLowerCase()
   const name = input.name.trim()
+
+  // Only gates *new* accounts — someone already signed in under a domain
+  // that's since been restricted doesn't get locked out.
+  const domains = allowedEmailDomains()
+  if (domains.length > 0) {
+    const domain = email.split("@")[1]
+    const existing = await prisma.user.findUnique({ where: { email } })
+    if (!existing && (!domain || !domains.includes(domain))) {
+      throw new HttpError(
+        `Sign-in is limited to ${domains.join(", ")} email addresses.`,
+        403,
+      )
+    }
+  }
+
   const count = await prisma.user.count()
   const user = await prisma.user.upsert({
     where: { email },
@@ -115,6 +131,28 @@ export async function updateProfile(
 ) {
   const user = await prisma.user.update({ where: { id }, data: patch })
   return publicUser(user)
+}
+
+/**
+ * Hard-deletes a user. Only safe when they've never reported a ticket or
+ * authored a comment/doc (those relations have no cascade — Postgres would
+ * reject it anyway). For anyone with real history, deactivate instead.
+ */
+export async function deleteUser(id: string) {
+  const exists = await prisma.user.findUnique({ where: { id } })
+  if (!exists) throw new HttpError("User not found", 404)
+  const [reported, authored, docAuthored] = await Promise.all([
+    prisma.ticket.count({ where: { reporterId: id } }),
+    prisma.comment.count({ where: { authorId: id } }),
+    prisma.doc.count({ where: { authorId: id } }),
+  ])
+  if (reported || authored || docAuthored) {
+    throw new HttpError(
+      "This person has reported tickets or comments — deactivate them instead of deleting.",
+      409,
+    )
+  }
+  await prisma.user.delete({ where: { id } })
 }
 
 /** OAuth callback: stores the (encrypted) token and marks the account linked. */

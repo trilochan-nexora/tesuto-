@@ -52,3 +52,15 @@ export function emailFrom() {
 export function releasesWebhookSecret() {
   return read("HEARTH_RELEASES_SECRET")
 }
+
+/**
+ * Comma-separated email domains allowed to sign in (e.g.
+ * "madebynexora.com,nexora.com"). Unset = any domain, same as before — this
+ * is opt-in so it never locks anyone out of a deployment that hasn't set it.
+ */
+export function allowedEmailDomains(): string[] {
+  return read("ALLOWED_EMAIL_DOMAINS")
+    .split(",")
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean)
+}

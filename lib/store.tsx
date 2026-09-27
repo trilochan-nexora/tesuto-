@@ -175,6 +175,7 @@ type StoreState = {
     title?: string
   }) => Promise<User>
   updateUser: (id: string, patch: Partial<User>) => void
+  deleteUser: (id: string) => Promise<void>
   updateProfile: (patch: Partial<User>) => void
   connectGithub: () => void
   disconnectGithub: () => void
@@ -652,6 +653,10 @@ export const useStore = create<StoreState>((set, get) => {
           toast.error("Couldn't update the user")
           console.error(e)
         })
+    },
+    deleteUser: async (id) => {
+      await api.del(`/users/${id}`)
+      set((s) => withUsers(s.users.filter((u) => u.id !== id)))
     },
     updateProfile: (patch) => {
       const meId = get()._meId
