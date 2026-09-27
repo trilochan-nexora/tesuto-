@@ -102,7 +102,17 @@ export type Comment = {
   ticketId: string
   authorId: string
   body: string
+  attachments?: MediaAttachment[]
   createdAt: string
+}
+
+export type MediaAttachment = {
+  id: string
+  name: string
+  kind: "voice" | "attachment"
+  mimeType: string
+  size: number
+  url: string
 }
 
 export type DomSnapshot = {
@@ -176,6 +186,8 @@ export type Ticket = {
   screenshotUrl?: string
   /** Private media URL for a widget-captured webm/mp4 recording. */
   recordingUrl?: string
+  /** Files and voice notes attached while the report was created. */
+  attachments?: MediaAttachment[]
   annotations?: Annotation[]
   context?: TicketContext
   githubIssueUrl?: string
@@ -389,13 +401,4 @@ export const FILTER_LABEL: Record<InboxFilter, string> = {
   mine: "Mine",
   urgent: "Urgent",
   overdue: "Overdue",
-}
-
-export interface SavedView {
-  id: string
-  ownerId: string
-  name: string
-  filter: InboxFilter
-  query: string
-  shared: boolean
 }

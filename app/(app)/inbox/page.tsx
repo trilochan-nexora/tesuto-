@@ -10,7 +10,6 @@ import {
 import { useMemo, useState } from "react"
 import { AppHeader } from "@/components/app-header"
 import { Pagination, usePagination } from "@/components/pagination"
-import { SavedViewsBar } from "@/components/saved-views-bar"
 import { TicketRow } from "@/components/ticket-row"
 import {
   Card,
@@ -34,7 +33,6 @@ import {
   FILTER_LABEL,
   INBOX_FILTERS,
   type InboxFilter,
-  type SavedView,
 } from "@/lib/types"
 
 const PER_PAGE = 20
@@ -52,12 +50,6 @@ export default function InboxPage() {
   const { tickets, currentUser } = useStore()
   const [filter, setFilter] = useState<InboxFilter>("all")
   const [query, setQuery] = useState("")
-
-  function applyView(v: SavedView) {
-    setFilter(v.filter)
-    setQuery(v.query)
-    pg.setPage(1)
-  }
 
   const stats = useMemo(() => {
     const open = tickets.filter(isOpen).length
@@ -185,8 +177,6 @@ export default function InboxPage() {
               />
             </div>
           </CardHeader>
-
-          <SavedViewsBar filter={filter} query={query} onApply={applyView} />
 
           <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
             {filtered.length === 0 ? (

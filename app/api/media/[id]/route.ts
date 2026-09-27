@@ -24,12 +24,29 @@ export async function GET(
   try {
     const bytes = await readStoredMedia(media.storageKey)
     const range = req.headers.get("range")
+    const requestedName = url.searchParams.get("download")
+    const downloadName = requestedName
+      ? requestedName
+          .replace(/["\\/]/g, "_")
+          .split("")
+          .map((character) => {
+            const code = character.charCodeAt(0)
+            return code < 32 || code === 127 ? "_" : character
+          })
+          .join("")
+          .slice(0, 120)
+      : undefined
     const baseHeaders = {
       "Accept-Ranges": "bytes",
       "Cache-Control": "private, max-age=300",
       "Content-Type": media.mimeType,
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'",
+      ...(downloadName
+        ? {
+            "Content-Disposition": `attachment; filename="${downloadName}"`,
+          }
+        : {}),
     }
     if (range) {
       const match = /^bytes=(\d+)-(\d*)$/.exec(range)

@@ -1,6 +1,14 @@
 "use client"
 
-import { ArrowUpRightIcon, ArrowSquareOutIcon, MonitorIcon, PlusIcon, WarningIcon } from "@phosphor-icons/react"
+import {
+  ArrowSquareOutIcon,
+  ArrowUpRightIcon,
+  FileIcon,
+  MicrophoneIcon,
+  MonitorIcon,
+  PlusIcon,
+  WarningIcon,
+} from "@phosphor-icons/react"
 import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
 import { use, useEffect, useState } from "react"
@@ -38,6 +46,7 @@ import { formatDuration, hoursBetween } from "@/lib/analytics"
 import { useStore } from "@/lib/store"
 import {
   columnMeta,
+  type MediaAttachment,
   PRIORITY_META,
   PRIORITY_ORDER,
   type Ticket,
@@ -52,6 +61,53 @@ const EVENT_LABEL: Record<string, string> = {
   unassigned: "unassigned",
   status: "moved",
   synced: "synced to GitHub",
+}
+
+function attachmentSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function AttachmentList({ items }: { items?: MediaAttachment[] }) {
+  if (!items?.length) return null
+  return (
+    <div className="flex max-w-xl flex-col gap-2">
+      {items.map((item) =>
+        item.kind === "voice" ? (
+          <div
+            key={item.id}
+            className="flex flex-col gap-2 rounded-lg bg-muted/60 p-3"
+          >
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <MicrophoneIcon className="size-4" />
+              Voice note
+              <span className="font-normal">· {attachmentSize(item.size)}</span>
+            </div>
+            {/* biome-ignore lint/a11y/useMediaCaption: user-recorded voice note, no captions exist */}
+            <audio src={item.url} controls preload="metadata" className="h-9 w-full" />
+          </div>
+        ) : (
+          <a
+            key={item.id}
+            href={item.url}
+            download={item.name}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-3 rounded-lg bg-muted/60 px-3 py-2.5 text-sm hover:bg-muted"
+          >
+            <FileIcon className="size-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate font-medium">
+              {item.name}
+            </span>
+            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+              {attachmentSize(item.size)}
+            </span>
+          </a>
+        ),
+      )}
+    </div>
+  )
 }
 
 export default function TicketDetailPage({
@@ -322,6 +378,15 @@ export default function TicketDetailPage({
               </section>
             ) : null}
 
+            {ticket.attachments?.length ? (
+              <section className="flex flex-col gap-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Attached evidence
+                </h2>
+                <AttachmentList items={ticket.attachments} />
+              </section>
+            ) : null}
+
             {duplicates.length ? (
               <section className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
@@ -538,9 +603,12 @@ export default function TicketDetailPage({
                                 className="text-xs text-muted-foreground"
                               />
                             </div>
-                            <p className="whitespace-pre-wrap text-[0.95rem] leading-relaxed text-foreground/90">
-                              {comment.body}
-                            </p>
+                            {comment.body ? (
+                              <p className="whitespace-pre-wrap text-[0.95rem] leading-relaxed text-foreground/90">
+                                {comment.body}
+                              </p>
+                            ) : null}
+                            <AttachmentList items={comment.attachments} />
                           </div>
                         </li>
                       )

@@ -35,7 +35,6 @@ model User {
   docs            Doc[]
 
   widgetLinks     WidgetLink[]
-  savedViews      SavedView[]
 
   @@map("users")
 }
@@ -123,6 +122,7 @@ model Ticket {
   domSnapshot    Json?     @map("dom_snapshot")
   screenshotUrl  String?   @map("screenshot_url")
   recordingUrl   String?   @map("recording_url")
+  attachments    Json?
   annotations    Json?
   context        Json?
   githubIssueUrl String?   @map("github_issue_url")
@@ -150,7 +150,7 @@ model Ticket {
 model MediaObject {
   id         String   @id
   storageKey String   @unique @map("storage_key")
-  kind       String // screenshot | recording
+  kind       String // screenshot | recording | voice | attachment
   mimeType   String   @map("mime_type")
   size       Int
   ticketId   String   @map("ticket_id")
@@ -168,6 +168,7 @@ model Comment {
   authorId  String   @map("author_id")
   author    User     @relation(fields: [authorId], references: [id])
   body      String
+  attachments Json?
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([ticketId])
@@ -228,20 +229,4 @@ model Doc {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("docs")
-}
-
-/// A named inbox filter + search. Private to its owner unless `shared`.
-model SavedView {
-  id        String   @id @default(cuid())
-  ownerId   String   @map("owner_id")
-  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  name      String
-  filter    String
-  query     String   @default("")
-  shared    Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@index([ownerId])
-  @@index([shared])
-  @@map("saved_views")
 }

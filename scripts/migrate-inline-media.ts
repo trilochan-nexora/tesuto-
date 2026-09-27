@@ -41,7 +41,7 @@ async function main() {
 
       await prisma.$transaction([
         prisma.mediaObject.createMany({
-          data: media.map(({ url: _url, ...item }) => item),
+          data: media.map(({ url: _url, name: _name, ...item }) => item),
         }),
         prisma.ticket.update({
           where: { id: t.id },

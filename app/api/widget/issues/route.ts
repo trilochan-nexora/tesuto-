@@ -2,6 +2,7 @@ import { z } from "zod"
 import { widgetRoute } from "@/lib/api"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import {
+  zAttachments,
   zContext,
   zDescription,
   zDomSnapshot,
@@ -10,6 +11,7 @@ import {
   zRecording,
   zScreenshot,
   zTitle,
+  zVoiceNote,
 } from "@/lib/schemas"
 import { widgetCreateIssue, widgetIssues } from "@/lib/services/widget"
 
@@ -20,6 +22,8 @@ const CreateSchema = z.object({
   sourceUrl: zHttpUrl.optional(),
   screenshot: zScreenshot.optional(),
   recording: zRecording.optional(),
+  voice: zVoiceNote.optional(),
+  attachments: zAttachments,
   domSnapshot: zDomSnapshot.optional(),
   context: zContext.optional(),
 })

@@ -7,6 +7,7 @@ export const zId = z.string().min(1).max(128)
 export const zTitle = z.string().trim().min(1).max(200)
 export const zDescription = z.string().max(50_000)
 export const zComment = z.string().trim().min(1).max(10_000)
+export const zCommentBody = z.string().trim().max(10_000).default("")
 export const zHttpUrl = z
   .string()
   .trim()
@@ -80,3 +81,22 @@ export const zRecording = z
   .max(15_000_000)
   // allow codec params (Chrome's MediaRecorder: "video/webm;codecs=vp9")
   .regex(/^data:video\/(?:webm|mp4)(?:;[^;,=]+=[^;,]+)*;base64,[A-Za-z0-9+/=]+$/)
+
+/** Browser-recorded voice note. The decoded payload is capped again on write. */
+export const zVoiceNote = z
+  .string()
+  .max(11_000_000)
+  .regex(/^data:audio\/(?:webm|mp4|mpeg|ogg|wav)(?:;[^;,=]+=[^;,]+)*;base64,[A-Za-z0-9+/=]+$/)
+
+/** Small evidence files sent inline by the dependency-free embedded widget. */
+export const zAttachment = z.object({
+  name: z.string().trim().min(1).max(120),
+  data: z
+    .string()
+    .max(7_000_000)
+    .regex(
+      /^data:(?:image\/(?:png|jpeg|webp|gif)|video\/(?:webm|mp4)|audio\/(?:webm|mp4|mpeg|ogg|wav)|application\/(?:pdf|json|zip|msword|vnd\.openxmlformats-officedocument\.(?:wordprocessingml\.document|spreadsheetml\.sheet)|vnd\.ms-excel)|text\/(?:plain|csv));base64,[A-Za-z0-9+/=]+$/,
+    ),
+})
+
+export const zAttachments = z.array(zAttachment).max(3).default([])

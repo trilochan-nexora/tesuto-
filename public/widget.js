@@ -500,15 +500,29 @@
   .issue .chev { margin-left: auto; color: var(--muted); align-self: center }
   .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 28px 12px }
 
-  .msgs { display: flex; flex-direction: column; gap: 14px }
-  .msg .bub { display: inline-block; background: var(--card); border-radius: 12px; padding: 9px 12px;
-    font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; max-width: 88% }
+  .msgs { display: flex; flex-direction: column; gap: 12px }
+  .msg { display: flex; flex-direction: column; align-items: flex-start }
+  .msg .bub { display: flex; flex-direction: column; gap: 8px; background: var(--card); border-radius: 12px;
+    padding: 9px 12px; font-size: 13.5px; line-height: 1.45; white-space: pre-wrap;
+    word-break: break-word; max-width: 88% }
   .msg.me { align-items: flex-end }
   .msg.me .bub { background: var(--accent); color: var(--accent-ink) }
   .msg .by { font-size: 11.5px; color: var(--muted); margin-top: 5px; display: flex; align-items: center; gap: 6px }
   .msg .av { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
     font-size: 8px; font-weight: 700; color: #fff }
   .sys { color: var(--muted); font-size: 12px; text-align: center }
+  .msg-copy:empty { display: none }
+  .msg-files { display: flex; flex-direction: column; gap: 6px; min-width: min(240px, 68vw) }
+  .voice-note { display: flex; flex-direction: column; gap: 5px }
+  .voice-note span { font-size: 10.5px; font-weight: 700; opacity: .72 }
+  .voice-note audio { display: block; width: 240px; max-width: 100%; height: 34px }
+  .file-link { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 8px; align-items: center;
+    padding: 7px 9px; border-radius: 8px; color: inherit; background: color-mix(in srgb, currentColor 8%, transparent);
+    text-decoration: none; white-space: normal }
+  .file-link:hover { background: color-mix(in srgb, currentColor 13%, transparent) }
+  .file-link svg { width: 17px; height: 17px; opacity: .72 }
+  .file-link b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px }
+  .file-link small { display: block; font-size: 10px; opacity: .68 }
 
   .foot { border-top: 1px solid var(--line); background: var(--bg) }
   /* issue view */
@@ -554,13 +568,33 @@
   .ctxbox code.reqline { display: block; font-size: 11px; font-family: ui-monospace, SFMono-Regular, monospace;
     color: var(--muted); white-space: pre-wrap; word-break: break-word }
 
-  .compose { display: flex; align-items: center; gap: 8px; padding: 10px 12px }
-  .compose .att { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px }
-  .compose input { flex: 1; background: var(--card); color: var(--text); border: 1px solid var(--accent);
-    border-radius: 9px; padding: 10px 12px; font-size: 13px; font-family: inherit; outline: none }
+  .compose { display: flex; flex-direction: column; gap: 7px; padding: 9px 10px 10px }
+  .compose-row { display: flex; flex-flow: row nowrap; align-items: flex-end; gap: 7px; width: 100% }
+  .compose textarea { flex: 1 1 auto; width: auto; min-width: 0; min-height: 38px; max-height: 96px; resize: none; background: var(--card);
+    color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px;
+    font-size: 13px; line-height: 1.35; font-family: inherit; outline: none }
+  .compose textarea:focus { border-color: var(--accent) }
+  .compose-tools { display: flex; flex: none; align-items: center; gap: 2px }
+  .compose .att { width: 32px; height: 32px; display: grid; place-items: center; background: none; border: none;
+    border-radius: 8px; color: var(--muted); cursor: pointer; padding: 0 }
+  .compose .att:hover { color: var(--text); background: var(--card) }
+  .compose .att.active { color: #ef4444; background: rgba(239,68,68,.1) }
+  .compose .att svg { width: 16px; height: 16px }
   .compose .send { width: 38px; height: 38px; border-radius: 9px; border: none; background: var(--accent);
     color: var(--accent-ink); cursor: pointer; display: grid; place-items: center; flex: none }
   .compose .send svg { width: 16px; height: 16px }
+  .compose .send[disabled] { opacity: .45; cursor: default }
+  .compose-staged { display: flex; flex-direction: column; gap: 5px }
+  .stage-row { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 6px 8px;
+    border-radius: 8px; background: var(--card); color: var(--muted); font-size: 11px }
+  .stage-row > svg { width: 15px; height: 15px; flex: none }
+  .stage-row .stage-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text) }
+  .stage-row button { width: 24px; height: 24px; display: grid; place-items: center; border: none; border-radius: 6px;
+    background: transparent; color: var(--muted); cursor: pointer }
+  .stage-row button:hover { color: var(--text); background: var(--bg) }
+  .stage-row button svg { width: 13px; height: 13px }
+  .stage-row audio { width: 150px; max-width: 50%; height: 30px }
+  .compose-error { margin: 0; color: #ef4444; font-size: 11px }
 
   .userbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px;
     border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted) }
@@ -587,6 +621,14 @@
   .btn[disabled] { opacity: .55; cursor: default }
   .shot-status { margin-top: 3px; padding: 10px; border-radius: 8px; background: var(--card); color: var(--muted); font-size: 12px }
   .shot-img { display: block; width: 100%; border-radius: 8px; border: 1px solid var(--line); margin-top: 4px }
+  .capture-tools { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 5px }
+  .capture-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 9px; background: var(--card); color: var(--text); font: 600 11.5px/1.2 inherit; cursor: pointer }
+  .capture-btn:hover { border-color: var(--accent) }
+  .capture-btn.active { color: #ef4444; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.08) }
+  .capture-btn svg { width: 15px; height: 15px }
+  .capture-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px }
+  .capture-list .stage-row { border: 1px solid var(--line) }
   .linkbtn { background: none; border: none; color: var(--accent); font-size: 11.5px; font-weight: 700; cursor: pointer; margin-top: 6px; padding: 0 }
   .note { font-size: 11px; color: var(--muted); margin-top: 10px }
   .err { color: #f87171 }
@@ -595,15 +637,9 @@
      element's kind (interactive / text / structure) reads from the border's
      PATTERN (solid / dashed / dotted), not a rainbow of hues */
   .pk-overlay { position: fixed; border: 2px solid ${ACCENT}; pointer-events: none; border-radius: 4px;
-    transition: top .04s linear, left .04s linear, width .04s linear, height .04s linear;
     z-index: 2147483001; animation: pk-pulse 1.6s ease-in-out infinite }
   .pk-overlay[data-kind="text"] { border-style: dashed }
   .pk-overlay[data-kind="structure"] { border-style: dotted }
-  .pk-corner { position: absolute; width: 10px; height: 10px; border-color: ${ACCENT}; pointer-events: none }
-  .pk-corner.tl { top: -4px; left: -4px; border-top: 2px solid; border-left: 2px solid; border-radius: 3px 0 0 0 }
-  .pk-corner.tr { top: -4px; right: -4px; border-top: 2px solid; border-right: 2px solid; border-radius: 0 3px 0 0 }
-  .pk-corner.bl { bottom: -4px; left: -4px; border-bottom: 2px solid; border-left: 2px solid; border-radius: 0 0 0 3px }
-  .pk-corner.br { bottom: -4px; right: -4px; border-bottom: 2px solid; border-right: 2px solid; border-radius: 0 0 3px 0 }
   @keyframes pk-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .68 } }
   @media (prefers-reduced-motion: reduce) {
     .pk-overlay { animation: none }
@@ -660,6 +696,8 @@
     out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>',
     x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
     rec: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="7"/></svg>',
+    mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>',
+    stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
   }
 
   const PRIORITIES = ["urgent", "high", "medium", "low"]
@@ -667,6 +705,32 @@
   // Screen recordings: capped so a clip stays emailable-sized and Postgres-safe.
   const REC_MAX_S = 60
   const REC_MAX_BYTES = 10 * 1024 * 1024
+  const VOICE_MAX_S = 60
+  const VOICE_MAX_BYTES = 8 * 1024 * 1024
+  const FILE_MAX_BYTES = 5 * 1024 * 1024
+  const FILE_MAX_COUNT = 3
+  const FILE_ACCEPT = [
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+    "video/webm",
+    "video/mp4",
+    "audio/webm",
+    "audio/mp4",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/wav",
+    "application/pdf",
+    "application/json",
+    "application/zip",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    "text/csv",
+  ]
   function escapeHtml(s) {
     return String(s == null ? "" : s).replace(
       /[&<>"]/g,
@@ -703,6 +767,19 @@
   function safeImageUrl(value) {
     return safeImageData(value) || safeHttpUrl(value)
   }
+  function fileSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.addEventListener("load", () => resolve(String(reader.result || "")))
+      reader.addEventListener("error", () => reject(reader.error || new Error("Couldn't read file")))
+      reader.readAsDataURL(file)
+    })
+  }
   function ago(iso) {
     const s = Math.max(1, (Date.now() - new Date(iso).getTime()) / 1000)
     if (s < 60) return "now"
@@ -730,11 +807,22 @@
     rec: null, // screen-recording data URL, attached on submit
     recState: "idle", // idle | starting | recording | error
     recErr: "",
+    reportFiles: [],
+    reportVoice: null,
+    reportVoiceState: "idle",
+    reportVoiceErr: "",
+    reportUploadErr: "",
     issues: { page: [], all: [] },
     issue: null,
     issueFrom: "page", // which tab openIssue() was called from
     thread: [],
     threadTimer: null,
+    scrollThreadToEnd: false,
+    replyFiles: [],
+    replyVoice: null,
+    replyVoiceState: "idle",
+    replyVoiceErr: "",
+    replyUploadErr: "",
     // Fab stays hidden until the corner click-gesture fires (see hotspot) —
     // always on for a localhost host page, and also for a host that opts in
     // via `alwaysVisible`/`data-always-visible` (a trusted internal app
@@ -1434,6 +1522,9 @@
 
   /* ---------------------------- issue detail --------------------------- */
   async function openIssue(id) {
+    discardVoice("reply")
+    state.replyFiles = []
+    state.replyUploadErr = ""
     state.issueFrom = state.view === "all" ? "all" : "page"
     state.view = "issue"
     state.issue = null
@@ -1446,6 +1537,10 @@
       ])
       state.issue = issue
       state.thread = thread
+      // Opening an issue is primarily a conversation action. Land on the
+      // newest message and composer; evidence remains available by scrolling
+      // upward. Poll refreshes do not steal the user's current scroll position.
+      state.scrollThreadToEnd = true
       render()
       startThreadPoll(id)
     } catch (err) {
@@ -1522,6 +1617,149 @@
     return (doc.body.textContent || "").trim()
   }
 
+  function appendAttachments(parent, attachments) {
+    const items = Array.isArray(attachments) ? attachments : []
+    if (!items.length) return
+    const list = document.createElement("div")
+    list.className = "msg-files"
+    items.forEach((item) => {
+      const url = safeHttpUrl(item && item.url)
+      if (!url) return
+      if (item.kind === "voice") {
+        const voice = document.createElement("div")
+        voice.className = "voice-note"
+        const label = document.createElement("span")
+        label.textContent = "Voice note"
+        const audio = document.createElement("audio")
+        audio.controls = true
+        audio.preload = "metadata"
+        audio.src = url
+        voice.append(label, audio)
+        list.appendChild(voice)
+        return
+      }
+      const link = document.createElement("a")
+      link.className = "file-link"
+      link.href = url
+      link.target = "_blank"
+      link.rel = "noopener noreferrer"
+      link.download = String(item.name || "attachment")
+      link.innerHTML = `${I.file}<span><b>${escapeHtml(item.name || "Attachment")}</b><small>${escapeHtml(
+        fileSize(Number(item.size) || 0),
+      )}</small></span>`
+      list.appendChild(link)
+    })
+    if (list.childElementCount) parent.appendChild(list)
+  }
+
+  function renderCaptureExtras(container, target, withButtons) {
+    if (!container) return
+    const filesKey = targetState(target, "Files")
+    const voiceKey = targetState(target, "Voice")
+    const voiceStateKey = targetState(target, "VoiceState")
+    const voiceErrorKey = targetState(target, "VoiceErr")
+    const uploadErrorKey = targetState(target, "UploadErr")
+    const files = state[filesKey]
+    const voice = state[voiceKey]
+    const voiceState = state[voiceStateKey]
+    container.innerHTML = ""
+
+    if (withButtons) {
+      const tools = document.createElement("div")
+      tools.className = "capture-tools"
+      const fileButton = document.createElement("button")
+      fileButton.type = "button"
+      fileButton.className = "capture-btn"
+      fileButton.innerHTML = `${I.clip}<span>Attach files</span>`
+      fileButton.disabled = files.length >= FILE_MAX_COUNT
+      fileButton.addEventListener("click", () => pickFiles(target))
+      const voiceButton = document.createElement("button")
+      voiceButton.type = "button"
+      voiceButton.className = `capture-btn${voiceState === "recording" ? " active" : ""}`
+      voiceButton.innerHTML =
+        voiceState === "recording"
+          ? `${I.stop}<span>Stop <span id="cp-voice-time">0:00</span></span>`
+          : `${I.mic}<span>${voice ? "Record again" : "Record voice"}</span>`
+      voiceButton.disabled = voiceState === "starting"
+      voiceButton.addEventListener("click", () => {
+        if (voiceState === "recording") void stopVoice()
+        else void startVoice(target)
+      })
+      tools.append(fileButton, voiceButton)
+      container.appendChild(tools)
+    }
+
+    const list = document.createElement("div")
+    list.className = "capture-list"
+    files.forEach((file, index) => {
+      const row = document.createElement("div")
+      row.className = "stage-row"
+      row.innerHTML = `${I.file}<span class="stage-name">${escapeHtml(file.name)}</span><span>${escapeHtml(
+        fileSize(file.size),
+      )}</span><button type="button" aria-label="Remove ${escapeHtml(file.name)}">${I.x}</button>`
+      row.querySelector("button").addEventListener("click", () => {
+        files.splice(index, 1)
+        refreshCaptureUi(target)
+      })
+      list.appendChild(row)
+    })
+    if (!withButtons && voiceState === "recording") {
+      const row = document.createElement("div")
+      row.className = "stage-row"
+      row.innerHTML = `${I.mic}<span class="stage-name">Recording voice note</span><span id="ie-voice-time">0:00</span>`
+      list.appendChild(row)
+    }
+    if (voice) {
+      const row = document.createElement("div")
+      row.className = "stage-row"
+      row.innerHTML = `${I.mic}<span class="stage-name">Voice note · ${escapeHtml(
+        fileSize(voice.size),
+      )}</span><button type="button" aria-label="Remove voice note">${I.x}</button>`
+      const audio = document.createElement("audio")
+      audio.controls = true
+      audio.preload = "metadata"
+      audio.src = voice.data
+      row.insertBefore(audio, row.querySelector("button"))
+      row.querySelector("button").addEventListener("click", () => discardVoice(target))
+      list.appendChild(row)
+    }
+    if (list.childElementCount) container.appendChild(list)
+    const error = state[voiceErrorKey] || state[uploadErrorKey]
+    if (error) {
+      const message = document.createElement("p")
+      message.className = "compose-error"
+      message.textContent = error
+      container.appendChild(message)
+    }
+  }
+
+  function renderReportExtras() {
+    renderCaptureExtras(shell.querySelector("#cp-extra"), "report", true)
+  }
+
+  function renderReplyExtras(compose) {
+    if (!compose) return
+    renderCaptureExtras(compose.querySelector(".compose-staged"), "reply", false)
+    const voiceButton = compose.querySelector("#ie-voice")
+    if (voiceButton) {
+      const recording = state.replyVoiceState === "recording"
+      voiceButton.classList.toggle("active", recording)
+      voiceButton.innerHTML = recording ? I.stop : I.mic
+      voiceButton.title = recording ? "Stop voice note" : "Record voice note"
+      voiceButton.setAttribute("aria-label", voiceButton.title)
+    }
+    const reply = compose.querySelector("#ie-reply")
+    const send = compose.querySelector(".send")
+    if (send) {
+      send.disabled = !(
+        (reply && reply.value.trim()) ||
+        state.replyFiles.length ||
+        state.replyVoice ||
+        state.replyVoiceState === "recording"
+      )
+    }
+  }
+
   function renderIssue() {
     const it = state.issue
     if (!it) {
@@ -1537,6 +1775,9 @@
       headEl({
         back: () => {
           stopThreadPoll()
+          discardVoice("reply")
+          state.replyFiles = []
+          state.replyUploadErr = ""
           go(state.issueFrom || "page")
         },
         title: it.title,
@@ -1549,13 +1790,14 @@
 
     const screenshotUrl = safeImageUrl(it.screenshotUrl)
     const recordingUrl = safeHttpUrl(it.recordingUrl)
+    const issueAttachments = Array.isArray(it.attachments) ? it.attachments : []
     const sourceUrl = safeHttpUrl(it.sourceUrl)
     const snap = it.domSnapshot || {}
     const box = elementBox(snap)
     const ctx = it.context || {}
 
     // 1 · Evidence — what the reporter saw, with the exact element outlined.
-    if (screenshotUrl || recordingUrl) {
+    if (screenshotUrl || recordingUrl || issueAttachments.length) {
       const sec = document.createElement("section")
       sec.className = "iv-sec"
       sec.innerHTML = `<p class="iv-lbl">Evidence</p>${
@@ -1574,6 +1816,7 @@
         wrap.addEventListener("click", () => openImageLightbox(screenshotUrl, box))
         wrap.querySelector("img").addEventListener("error", () => wrap.remove())
       }
+      appendAttachments(sec, issueAttachments)
       body.appendChild(sec)
     }
 
@@ -1683,6 +1926,10 @@
           author: it.reporter,
           createdAt: it.createdAt,
           me: state.me && it.reporter && it.reporter.name === state.me.name,
+          // Report evidence is rendered once in the Evidence section above.
+          // Repeating it in the opening message makes the thread noisy and
+          // wastes the limited vertical space in the embedded panel.
+          attachments: [],
         }),
       )
     }
@@ -1693,6 +1940,7 @@
           author: c.author,
           createdAt: c.createdAt,
           me: state.me && c.author && c.author.id === state.me.id,
+          attachments: c.attachments,
         }),
       ),
     )
@@ -1702,8 +1950,8 @@
     thread.appendChild(msgs)
     body.appendChild(thread)
     shell.appendChild(body)
-    // Open at the evidence, not the last message — only jump to the bottom
-    // right after this browser posted a reply.
+    // Jump to the newest message only when the issue first opens or this
+    // browser posts a reply. Background polling preserves the reader's place.
     if (state.scrollThreadToEnd) {
       state.scrollThreadToEnd = false
       requestAnimationFrame(() => {
@@ -1711,29 +1959,76 @@
       })
     }
 
-    // Footer: reply only.
+    // Footer: message, file attachments and a short voice note.
     const foot = document.createElement("div")
     foot.className = "foot"
     const cp = document.createElement("form")
     cp.className = "compose"
-    cp.innerHTML = `<button type="button" class="att" title="Attach (coming soon)" disabled>${I.clip}</button>
-      <input id="ie-reply" placeholder="Type a reply…" autocomplete="off" aria-label="Reply" />
-      <button class="send" type="submit" aria-label="Send">${I.send}</button>`
+    cp.innerHTML = `<div class="compose-staged"></div><div class="compose-row">
+      <div class="compose-tools">
+        <button type="button" class="att" id="ie-attach" title="Attach files" aria-label="Attach files">${I.clip}</button>
+        <button type="button" class="att" id="ie-voice" title="Record voice note" aria-label="Record voice note">${I.mic}</button>
+      </div>
+      <textarea id="ie-reply" rows="1" placeholder="Write a reply…" autocomplete="off" aria-label="Reply"></textarea>
+      <button class="send" type="submit" aria-label="Send" disabled>${I.send}</button>
+    </div>`
     foot.appendChild(cp)
+    const reply = cp.querySelector("#ie-reply")
+    reply.addEventListener("input", () => {
+      reply.style.height = "auto"
+      reply.style.height = `${Math.min(reply.scrollHeight, 96)}px`
+      renderReplyExtras(cp)
+    })
+    reply.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault()
+        cp.requestSubmit()
+      }
+    })
+    cp.querySelector("#ie-attach").addEventListener("click", () => pickFiles("reply"))
+    cp.querySelector("#ie-voice").addEventListener("click", () => {
+      if (state.replyVoiceState === "recording") void stopVoice()
+      else void startVoice("reply")
+    })
+    renderReplyExtras(cp)
     cp.addEventListener("submit", async (e) => {
       e.preventDefault()
       const inp = cp.querySelector("#ie-reply")
       const v = inp.value.trim()
-      if (!v) return
-      inp.value = ""
+      if (
+        !v &&
+        !state.replyFiles.length &&
+        !state.replyVoice &&
+        state.replyVoiceState !== "recording"
+      ) {
+        return
+      }
+      const send = cp.querySelector(".send")
+      send.disabled = true
       try {
-        const c = await apiPost(`/widget/issues/${it.id}/comments`, { body: v })
+        if (state.replyVoiceState === "recording") await stopVoice()
+        const c = await apiPost(`/widget/issues/${it.id}/comments`, {
+          body: v,
+          voice: state.replyVoice ? state.replyVoice.data : undefined,
+          attachments: state.replyFiles.map((file) => ({
+            name: file.name,
+            data: file.data,
+          })),
+        })
         state.thread.push(c)
+        state.replyFiles = []
+        state.replyVoice = null
+        state.replyVoiceState = "idle"
+        state.replyVoiceErr = ""
+        state.replyUploadErr = ""
         state.scrollThreadToEnd = true
         render()
       } catch (err) {
         console.error("[tesuto]", err)
-        inp.value = v
+        state.replyUploadErr =
+          err && err.message ? err.message : "Couldn't send that reply. Try again."
+        send.disabled = false
+        renderReplyExtras(cp)
       }
     })
     shell.appendChild(foot)
@@ -1753,12 +2048,10 @@
     }
   }
 
-  function bubble({ body, author, createdAt, me }) {
+  function bubble({ body, author, createdAt, me, attachments }) {
     const d = document.createElement("div")
     d.className = "msg" + (me ? " me" : "")
-    d.style.display = "flex"
-    d.style.flexDirection = "column"
-    d.innerHTML = `<span class="bub">${escapeHtml(body)}</span>
+    d.innerHTML = `<span class="bub"><span class="msg-copy">${escapeHtml(body)}</span></span>
       <span class="by">${
         author
           ? `<span class="av" style="background:${safeColor(author.color)}">${escapeHtml(
@@ -1766,6 +2059,7 @@
             )}</span>${escapeHtml(author.name)} · `
           : ""
       }${ago(createdAt)}</span>`
+    appendAttachments(d.querySelector(".bub"), attachments)
     return d
   }
 
@@ -1778,14 +2072,214 @@
   let recTimer = null
   let recStartedAt = 0
   let recResolve = null
+  let voiceRecorder = null
+  let voiceStream = null
+  let voiceChunks = []
+  let voiceTimer = null
+  let voiceStartedAt = 0
+  let voiceTarget = null
+  let voiceResolve = null
+  let discardVoiceOnStop = false
+
+  function targetState(target, field) {
+    const prefix = target === "report" ? "report" : "reply"
+    return `${prefix}${field}`
+  }
+  function voiceSupported() {
+    return !!(
+      navigator.mediaDevices &&
+      navigator.mediaDevices.getUserMedia &&
+      window.MediaRecorder
+    )
+  }
+  function voiceMime() {
+    const options = [
+      "audio/webm;codecs=opus",
+      "audio/mp4",
+      "audio/webm",
+    ]
+    return options.find((type) => MediaRecorder.isTypeSupported(type)) || ""
+  }
+  function refreshCaptureUi(target) {
+    if (target === "report") renderReportExtras()
+    else renderReplyExtras(shell.querySelector(".compose"))
+  }
+  function clearVoiceRecorder() {
+    if (voiceTimer) clearInterval(voiceTimer)
+    voiceTimer = null
+    if (voiceStream) voiceStream.getTracks().forEach((track) => track.stop())
+    voiceStream = null
+    voiceRecorder = null
+    voiceChunks = []
+    voiceTarget = null
+  }
+  function resolveVoiceStop() {
+    if (voiceResolve) voiceResolve()
+    voiceResolve = null
+  }
+  function discardVoice(target) {
+    if (voiceTarget === target && voiceRecorder && voiceRecorder.state !== "inactive") {
+      discardVoiceOnStop = true
+      voiceRecorder.stop()
+    } else if (voiceTarget === target) {
+      clearVoiceRecorder()
+    }
+    state[targetState(target, "Voice")] = null
+    state[targetState(target, "VoiceState")] = "idle"
+    state[targetState(target, "VoiceErr")] = ""
+    refreshCaptureUi(target)
+  }
+  async function startVoice(target) {
+    const stateKey = targetState(target, "VoiceState")
+    const errorKey = targetState(target, "VoiceErr")
+    if (!voiceSupported()) {
+      state[stateKey] = "error"
+      state[errorKey] = "Voice recording isn't supported in this browser."
+      refreshCaptureUi(target)
+      return
+    }
+    if (voiceRecorder && voiceRecorder.state !== "inactive") {
+      await stopVoice()
+    }
+    state[targetState(target, "Voice")] = null
+    state[stateKey] = "starting"
+    state[errorKey] = ""
+    refreshCaptureUi(target)
+    try {
+      voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      voiceTarget = target
+      voiceChunks = []
+      const mimeType = voiceMime()
+      voiceRecorder = mimeType
+        ? new MediaRecorder(voiceStream, { mimeType })
+        : new MediaRecorder(voiceStream)
+      voiceRecorder.addEventListener("dataavailable", (event) => {
+        if (event.data && event.data.size) voiceChunks.push(event.data)
+      })
+      voiceRecorder.addEventListener("stop", () => {
+        const finishedTarget = voiceTarget || target
+        if (discardVoiceOnStop) {
+          discardVoiceOnStop = false
+          clearVoiceRecorder()
+          refreshCaptureUi(finishedTarget)
+          resolveVoiceStop()
+          return
+        }
+        const type = (voiceRecorder && voiceRecorder.mimeType) || "audio/webm"
+        const blob = new Blob(voiceChunks, { type })
+        if (!blob.size || blob.size > VOICE_MAX_BYTES) {
+          state[targetState(finishedTarget, "Voice")] = null
+          state[targetState(finishedTarget, "VoiceState")] = "error"
+          state[targetState(finishedTarget, "VoiceErr")] = blob.size
+            ? "Voice note is over 8 MB. Record a shorter note."
+            : "No audio was captured. Check microphone access and try again."
+          clearVoiceRecorder()
+          refreshCaptureUi(finishedTarget)
+          resolveVoiceStop()
+          return
+        }
+        const reader = new FileReader()
+        reader.addEventListener("load", () => {
+          state[targetState(finishedTarget, "Voice")] = {
+            data: String(reader.result || ""),
+            size: blob.size,
+          }
+          state[targetState(finishedTarget, "VoiceState")] = "idle"
+          clearVoiceRecorder()
+          refreshCaptureUi(finishedTarget)
+          resolveVoiceStop()
+        })
+        reader.addEventListener("error", () => {
+          state[targetState(finishedTarget, "VoiceState")] = "error"
+          state[targetState(finishedTarget, "VoiceErr")] = "Couldn't prepare that voice note."
+          clearVoiceRecorder()
+          refreshCaptureUi(finishedTarget)
+          resolveVoiceStop()
+        })
+        reader.readAsDataURL(blob)
+      })
+      voiceRecorder.start(250)
+      voiceStartedAt = Date.now()
+      state[stateKey] = "recording"
+      refreshCaptureUi(target)
+      voiceTimer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - voiceStartedAt) / 1000)
+        const timer = shell.querySelector(
+          target === "report" ? "#cp-voice-time" : "#ie-voice-time",
+        )
+        if (timer) timer.textContent = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`
+        if (elapsed >= VOICE_MAX_S) void stopVoice()
+      }, 250)
+    } catch (error) {
+      clearVoiceRecorder()
+      state[stateKey] = "error"
+      state[errorKey] =
+        error && error.name === "NotAllowedError"
+          ? "Microphone access was blocked. Allow it and try again."
+          : "Couldn't start the microphone."
+      refreshCaptureUi(target)
+    }
+  }
+  async function stopVoice() {
+    if (!voiceRecorder || voiceRecorder.state === "inactive") return
+    if (voiceTimer) clearInterval(voiceTimer)
+    voiceTimer = null
+    await new Promise((resolve) => {
+      voiceResolve = resolve
+      voiceRecorder.stop()
+    })
+  }
+  function pickFiles(target) {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.multiple = true
+    input.accept = FILE_ACCEPT.join(",")
+    input.addEventListener("change", async () => {
+      const filesKey = targetState(target, "Files")
+      const errorKey = targetState(target, "UploadErr")
+      const existing = state[filesKey]
+      const picked = Array.from(input.files || [])
+      state[errorKey] = ""
+      if (existing.length + picked.length > FILE_MAX_COUNT) {
+        state[errorKey] = `Attach up to ${FILE_MAX_COUNT} files.`
+        refreshCaptureUi(target)
+        return
+      }
+      const readable = []
+      for (const file of picked) {
+        if (!FILE_ACCEPT.includes(file.type)) {
+          state[errorKey] = `${file.name} isn't a supported file type.`
+          continue
+        }
+        if (!file.size || file.size > FILE_MAX_BYTES) {
+          state[errorKey] = `${file.name} is over 5 MB.`
+          continue
+        }
+        readable.push(file)
+      }
+      const files = await Promise.all(
+        readable.map(async (file) => {
+          try {
+            return {
+              name: file.name.slice(0, 120),
+              type: file.type,
+              size: file.size,
+              data: await fileToDataUrl(file),
+            }
+          } catch {
+            state[errorKey] = `Couldn't read ${file.name}.`
+            return null
+          }
+        }),
+      )
+      existing.push(...files.filter(Boolean))
+      refreshCaptureUi(target)
+    })
+    input.click()
+  }
   const pkOverlay = document.createElement("div")
   pkOverlay.className = "pk-overlay"
   pkOverlay.style.display = "none"
-  for (const corner of ["tl", "tr", "bl", "br"]) {
-    const c = document.createElement("div")
-    c.className = `pk-corner ${corner}`
-    pkOverlay.appendChild(c)
-  }
   const pkTag = document.createElement("div")
   pkTag.className = "pk-tag"
   const pkTagDot = document.createElement("span")
@@ -2096,8 +2590,7 @@
       return
     }
     if (state.shot) {
-      wrap.innerHTML = `<img class="shot-img" alt="screenshot" /><button type="button" class="linkbtn" id="cp-shot-x">Remove screenshot</button>`
-      wrap.querySelector("img").src = state.shot
+      wrap.innerHTML = `<img class="shot-img" alt="Screenshot preview" src="${escapeHtml(state.shot)}" /><button type="button" class="linkbtn" id="cp-shot-x">Remove screenshot</button>`
       wrap.querySelector("#cp-shot-x").addEventListener("click", () => {
         state.shot = null
         state.shotState = "idle"
@@ -2453,6 +2946,8 @@
             state.rec = null
             state.recState = "idle"
           })
+          discardVoice("report")
+          state.reportFiles = []
           clearPinMark()
           go("actions")
         },
@@ -2493,6 +2988,8 @@
       <div id="cp-shot"></div>
       <label>Screen recording <span style="font-weight:400">(optional)</span></label>
       <div id="cp-rec"></div>
+      <label>Files &amp; voice <span style="font-weight:400">(optional)</span></label>
+      <div id="cp-extra"></div>
       <div class="note">${
         consoleErrors.length + failedRequests.length
       } page signal(s) and ${steps.length} recent step(s) will be attached.</div>
@@ -2503,6 +3000,7 @@
     shell.appendChild(form)
     renderShot()
     renderRec()
+    renderReportExtras()
     form.querySelector("#cp-title").focus()
     form.querySelectorAll("[data-dupe]").forEach((b) =>
       b.addEventListener("click", () => {
@@ -2517,6 +3015,8 @@
         state.rec = null
         state.recState = "idle"
       })
+      discardVoice("report")
+      state.reportFiles = []
       clearPinMark()
       go("actions")
     })
@@ -2531,6 +3031,10 @@
         if (state.recState === "recording") {
           btn.textContent = "Finishing recording…"
           await stopRecording()
+        }
+        if (state.reportVoiceState === "recording") {
+          btn.textContent = "Finishing voice note…"
+          await stopVoice()
         }
         const dom = isPin
           ? { selector: "", tag: "", x: p.pin.x, y: p.pin.y }
@@ -2550,6 +3054,11 @@
           sourceUrl: location.href,
           screenshot: state.shot || undefined,
           recording: state.rec || undefined,
+          voice: state.reportVoice ? state.reportVoice.data : undefined,
+          attachments: state.reportFiles.map((file) => ({
+            name: file.name,
+            data: file.data,
+          })),
           domSnapshot: dom,
           context: {
             browser: navigator.userAgent,
@@ -2563,6 +3072,11 @@
         state.shot = null
         state.rec = null
         state.recState = "idle"
+        state.reportFiles = []
+        state.reportVoice = null
+        state.reportVoiceState = "idle"
+        state.reportVoiceErr = ""
+        state.reportUploadErr = ""
         clearPinMark()
         await loadIssues()
         go("page")

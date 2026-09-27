@@ -17,12 +17,50 @@ import {
 } from "@/lib/env"
 import { signedMediaUrl } from "@/lib/media"
 import { devMailFallback, logDevAuthCode, sendAuthEmail } from "@/lib/notify"
-import { columnMeta } from "@/lib/types"
-import { addComment } from "./comments"
+import { columnMeta, type MediaAttachment } from "@/lib/types"
+import { addComment, type NewCommentInput } from "./comments"
 import { createTicket, patchTicket } from "./tickets"
 
 function projectTokenFrom(req: Request) {
   return (req.headers.get("x-tesuto-project") ?? "").trim()
+}
+
+function attachmentList(req: Request, value: unknown): MediaAttachment[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return []
+    const row = item as Record<string, unknown>
+    const signed =
+      typeof row.url === "string" ? signedMediaUrl(req, row.url) : ""
+    const url = signed ? new URL(signed) : null
+    if (
+      typeof row.id !== "string" ||
+      typeof row.name !== "string" ||
+      (row.kind !== "voice" && row.kind !== "attachment") ||
+      typeof row.mimeType !== "string" ||
+      typeof row.size !== "number" ||
+      !url
+    ) {
+      return []
+    }
+    return [
+      {
+        id: row.id,
+        name: row.name,
+        kind: row.kind,
+        mimeType: row.mimeType,
+        size: row.size,
+        url: (() => {
+          // Audio players need an inline response; regular files should
+          // download using the reporter's original, sanitised filename.
+          if (row.kind === "attachment") {
+            url.searchParams.set("download", row.name as string)
+          }
+          return url.toString()
+        })(),
+      },
+    ]
+  })
 }
 
 /** Resolve the project from its token, or 401 with a clear message. */
@@ -54,9 +92,16 @@ export async function widgetProjectInfo(req: Request) {
   return { id: p.id, key: p.key, name: p.name }
 }
 
+// Keep this non-sensitive development fallback in sync with Hearth's
+// apps/server/src/routes.ts. Production always requires the environment value.
+const DEV_WIDGET_SECRET = "tesuto-local-widget-secret-do-not-use-in-production"
+
 /** Shared secret with the host app. It is mandatory for widget identity. */
 export function widgetSecret() {
-  return deploymentSecret("TESUTO_WIDGET_SECRET")
+  return (
+    deploymentSecret("TESUTO_WIDGET_SECRET") ||
+    (process.env.NODE_ENV === "production" ? "" : DEV_WIDGET_SECRET)
+  )
 }
 
 function verifiedHostEmail(assertion: unknown): string {
@@ -391,6 +436,7 @@ export async function widgetIssue(req: Request, id: string) {
     sourceUrl: t.sourceUrl,
     screenshotUrl: signedMediaUrl(req, t.screenshotUrl),
     recordingUrl: signedMediaUrl(req, t.recordingUrl),
+    attachments: attachmentList(req, t.attachments),
     domSnapshot: t.domSnapshot,
     context: t.context,
     createdAt: t.createdAt,
@@ -418,6 +464,7 @@ export async function widgetComments(req: Request, id: string) {
     body: c.body,
     createdAt: c.createdAt,
     author: c.author,
+    attachments: attachmentList(req, c.attachments),
   }))
 }
 
@@ -431,15 +478,20 @@ async function assertInProject(id: string, projectId: string) {
   }
 }
 
-export async function widgetAddComment(req: Request, id: string, body: string) {
+export async function widgetAddComment(
+  req: Request,
+  id: string,
+  input: NewCommentInput,
+) {
   const { user, project } = await widgetAuth(req)
   await assertInProject(id, project.id)
-  const c = await addComment(id, body, user.id)
+  const c = await addComment(id, input, user.id)
   return {
     id: c.id,
     body: c.body,
     createdAt: c.createdAt,
     author: { id: user.id, name: user.name, color: user.color },
+    attachments: attachmentList(req, c.attachments),
   }
 }
 
@@ -461,6 +513,8 @@ export type WidgetCreateInput = {
   sourceUrl?: string
   screenshot?: string
   recording?: string
+  voice?: string
+  attachments?: Array<{ name: string; data: string }>
   domSnapshot?: unknown
   context?: unknown
 }
@@ -480,6 +534,8 @@ export async function widgetCreateIssue(
       sourceUrl: input.sourceUrl,
       screenshotUrl: input.screenshot,
       recordingUrl: input.recording,
+      voiceNote: input.voice,
+      attachments: input.attachments,
       domSnapshot: input.domSnapshot,
       context: input.context,
     },

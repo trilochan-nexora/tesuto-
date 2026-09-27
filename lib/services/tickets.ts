@@ -4,11 +4,7 @@ import { decryptToken } from "@/lib/crypto"
 import { prisma } from "@/lib/db"
 import { appUrl } from "@/lib/env"
 import { createGithubIssue } from "@/lib/github"
-import {
-  deleteStoredMedia,
-  type PreparedMedia,
-  prepareMedia,
-} from "@/lib/media"
+import { deleteStoredMedia, prepareMediaBatch } from "@/lib/media"
 import {
   type NotifyTicket,
   notifyTicketAssigned,
@@ -17,7 +13,7 @@ import {
   notifyTicketUnassigned,
 } from "@/lib/notify"
 import { sanitizeRichText } from "@/lib/sanitize"
-import type { TicketEvent } from "@/lib/types"
+import type { MediaAttachment, TicketEvent } from "@/lib/types"
 import { DEFAULT_COLUMNS } from "@/lib/types"
 import { Prisma } from "@/prisma/generated/client"
 import { getSetting } from "./settings"
@@ -126,6 +122,8 @@ export type NewTicketInput = {
   sourceUrl?: string
   screenshotUrl?: string
   recordingUrl?: string
+  voiceNote?: string
+  attachments?: Array<{ name: string; data: string }>
   annotations?: unknown
   domSnapshot?: unknown
   context?: unknown
@@ -139,26 +137,38 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
 
   const iso = new Date()
   const ticketId = randomUUID()
-  const media: PreparedMedia[] = []
-  try {
-    const screenshot = await prepareMedia(
-      input.screenshotUrl,
-      "screenshot",
+  const media = await prepareMediaBatch([
+    { data: input.screenshotUrl, kind: "screenshot", ticketId },
+    { data: input.recordingUrl, kind: "recording", ticketId },
+    {
+      data: input.voiceNote,
+      kind: "voice",
       ticketId,
-    )
-    if (screenshot) media.push(screenshot)
-    const recording = await prepareMedia(
-      input.recordingUrl,
-      "recording",
+      name: "Voice note",
+    },
+    ...(input.attachments ?? []).map((item) => ({
+      data: item.data,
+      kind: "attachment" as const,
       ticketId,
-    )
-    if (recording) media.push(recording)
-  } catch (error) {
-    await deleteStoredMedia(media)
-    throw error
-  }
+      name: item.name,
+    })),
+  ])
   const screenshot = media.find((item) => item.kind === "screenshot")
   const recording = media.find((item) => item.kind === "recording")
+  const attachments: MediaAttachment[] = media.flatMap((item) =>
+    item.kind === "voice" || item.kind === "attachment"
+      ? [
+          {
+            id: item.id,
+            name: item.name,
+            kind: item.kind,
+            mimeType: item.mimeType,
+            size: item.size,
+            url: item.url,
+          },
+        ]
+      : [],
+  )
   const status = input.status ?? "backlog"
   let terminal: boolean
   try {
@@ -193,6 +203,9 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
     sourceUrl: input.sourceUrl ?? null,
     screenshotUrl: screenshot?.url ?? null,
     recordingUrl: recording?.url ?? null,
+    attachments: attachments.length
+      ? (attachments as unknown as Prisma.InputJsonValue)
+      : undefined,
     annotations: (input.annotations ?? undefined) as Prisma.InputJsonValue,
     domSnapshot: (input.domSnapshot ?? undefined) as Prisma.InputJsonValue,
     context: (input.context ?? undefined) as Prisma.InputJsonValue,
@@ -224,7 +237,7 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
           })
           if (media.length) {
             await tx.mediaObject.createMany({
-              data: media.map(({ url: _url, ...item }) => item),
+              data: media.map(({ url: _url, name: _name, ...item }) => item),
             })
           }
           return created

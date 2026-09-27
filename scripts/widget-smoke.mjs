@@ -27,6 +27,31 @@ let seq = 0
 let lastPost = null
 let currentUser = { id: "u1", name: "Dipen Raut", color: "#7c5cff" }
 
+function fakeAttachments(body = {}) {
+  return [
+    ...(body.voice
+      ? [
+          {
+            id: `m${++seq}`,
+            name: "Voice note",
+            kind: "voice",
+            mimeType: "audio/webm",
+            size: 10,
+            url: "http://t.local/media/voice.webm",
+          },
+        ]
+      : []),
+    ...(body.attachments || []).map((item) => ({
+      id: `m${++seq}`,
+      name: item.name,
+      kind: "attachment",
+      mimeType: "text/plain",
+      size: 10,
+      url: "http://t.local/media/file.txt",
+    })),
+  ]
+}
+
 function api(method, path, body) {
   const u = new URL(path, "http://t.local")
   const p = u.pathname.replace("/api", "")
@@ -69,6 +94,8 @@ function api(method, path, body) {
       assigneeId: null,
       sourceUrl: body.sourceUrl,
       screenshotUrl: body.screenshot || null,
+      recordingUrl: body.recording || null,
+      attachments: fakeAttachments(body),
       domSnapshot: body.domSnapshot,
       createdAt: new Date().toISOString(),
       reporter: { name: "Dipen Raut", color: "#7c5cff" },
@@ -85,6 +112,7 @@ function api(method, path, body) {
         const c = {
           id: `c${++seq}`,
           body: body.body,
+          attachments: fakeAttachments(body),
           createdAt: new Date().toISOString(),
           author: { id: "u1", name: "Dipen Raut", color: "#7c5cff" },
         }
@@ -237,6 +265,10 @@ ok(
   "compose auto-captures; no 'Add screenshot' button, shows unsupported note",
   /can't capture/i.test($("#cp-shot")?.textContent || "") && !$("#cp-shot-add"),
 )
+ok(
+  "report composer offers files and a voice note",
+  $$("#cp-extra .capture-btn").length === 2,
+)
 
 $("#cp-title").value = "navbar overlaps footer"
 $(".form").dispatchEvent(new window.Event("submit"))
@@ -275,8 +307,16 @@ ok(
   !!$("#ie-prio") && !!$("#ie-status"),
 )
 ok("issue view: reply box", !!$("#ie-reply"))
+ok(
+  "chat composer keeps tools, message, and send in one row",
+  !!$(".compose-row #ie-attach") &&
+    !!$(".compose-row #ie-voice") &&
+    !!$(".compose-row #ie-reply") &&
+    !!$(".compose-row .send"),
+)
 
 $("#ie-reply").value = "on it"
+$("#ie-reply").dispatchEvent(new window.Event("input"))
 $(".compose").dispatchEvent(new window.Event("submit"))
 await tick()
 await tick()

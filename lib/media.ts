@@ -11,7 +11,7 @@ import {
 import { join, resolve } from "node:path"
 import { appSecret } from "./env"
 
-export type MediaKind = "screenshot" | "recording"
+export type MediaKind = "screenshot" | "recording" | "voice" | "attachment"
 
 export type PreparedMedia = {
   id: string
@@ -21,14 +21,67 @@ export type PreparedMedia = {
   size: number
   ticketId: string
   url: string
+  name: string
 }
 
-const TYPES: Record<string, { extension: string; kind: MediaKind }> = {
-  "image/png": { extension: "png", kind: "screenshot" },
-  "image/jpeg": { extension: "jpg", kind: "screenshot" },
-  "image/webp": { extension: "webp", kind: "screenshot" },
-  "video/webm": { extension: "webm", kind: "recording" },
-  "video/mp4": { extension: "mp4", kind: "recording" },
+export type MediaUpload = {
+  data?: string
+  kind: MediaKind
+  ticketId: string
+  name?: string
+}
+
+const TYPES: Record<
+  string,
+  { extension: string; kinds: readonly MediaKind[] }
+> = {
+  "image/png": { extension: "png", kinds: ["screenshot", "attachment"] },
+  "image/jpeg": { extension: "jpg", kinds: ["screenshot", "attachment"] },
+  "image/webp": { extension: "webp", kinds: ["screenshot", "attachment"] },
+  "image/gif": { extension: "gif", kinds: ["attachment"] },
+  "video/webm": { extension: "webm", kinds: ["recording", "attachment"] },
+  "video/mp4": { extension: "mp4", kinds: ["recording", "attachment"] },
+  "audio/webm": { extension: "webm", kinds: ["voice", "attachment"] },
+  "audio/mp4": { extension: "m4a", kinds: ["voice", "attachment"] },
+  "audio/mpeg": { extension: "mp3", kinds: ["voice", "attachment"] },
+  "audio/ogg": { extension: "ogg", kinds: ["voice", "attachment"] },
+  "audio/wav": { extension: "wav", kinds: ["voice", "attachment"] },
+  "application/pdf": { extension: "pdf", kinds: ["attachment"] },
+  "application/json": { extension: "json", kinds: ["attachment"] },
+  "application/zip": { extension: "zip", kinds: ["attachment"] },
+  "application/msword": { extension: "doc", kinds: ["attachment"] },
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+    extension: "docx",
+    kinds: ["attachment"],
+  },
+  "application/vnd.ms-excel": { extension: "xls", kinds: ["attachment"] },
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+    extension: "xlsx",
+    kinds: ["attachment"],
+  },
+  "text/plain": { extension: "txt", kinds: ["attachment"] },
+  "text/csv": { extension: "csv", kinds: ["attachment"] },
+}
+
+const MAX_BYTES: Record<MediaKind, number> = {
+  screenshot: 6_000_000,
+  recording: 11_000_000,
+  voice: 8_000_000,
+  attachment: 5_000_000,
+}
+
+function safeMediaName(value: string | undefined, fallback: string) {
+  const cleaned = (value ?? "")
+    .trim()
+    .replace(/[\\/]/g, "_")
+    .split("")
+    .map((character) => {
+      const code = character.charCodeAt(0)
+      return code < 32 || code === 127 ? "_" : character
+    })
+    .join("")
+    .slice(0, 120)
+  return cleaned || fallback
 }
 
 export function mediaRoot() {
@@ -54,22 +107,21 @@ export async function prepareMedia(
   dataUrl: string | undefined,
   expectedKind: MediaKind,
   ticketId: string,
+  name?: string,
 ): Promise<PreparedMedia | null> {
   if (!dataUrl) return null
   // MediaRecorder emits params like "video/webm;codecs=vp9" — accept and drop
   // them; the stored type is the bare MIME.
-  const match = /^data:([^;,]+)(?:;[^;,=]+=[^;,]+)*;base64,([A-Za-z0-9+/=]+)$/.exec(
-    dataUrl,
-  )
+  const match =
+    /^data:([^;,]+)(?:;[^;,=]+=[^;,]+)*;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
   if (!match) throw new Error("Malformed media data")
   const mimeType = match[1].toLowerCase()
   const config = TYPES[mimeType]
-  if (!config || config.kind !== expectedKind) {
+  if (!config?.kinds.includes(expectedKind)) {
     throw new Error(`Unsupported ${expectedKind} format`)
   }
   const bytes = Buffer.from(match[2], "base64")
-  const maxBytes = expectedKind === "screenshot" ? 6_000_000 : 11_000_000
-  if (!bytes.length || bytes.length > maxBytes) {
+  if (!bytes.length || bytes.length > MAX_BYTES[expectedKind]) {
     throw new Error(`${expectedKind} is too large`)
   }
 
@@ -93,7 +145,29 @@ export async function prepareMedia(
     size: bytes.length,
     ticketId,
     url: mediaUrl(id),
+    name: safeMediaName(name, `${expectedKind}.${config.extension}`),
   }
+}
+
+/** Prepare independent uploads concurrently and remove every completed file
+ * if any member of the batch fails. */
+export async function prepareMediaBatch(
+  uploads: MediaUpload[],
+): Promise<PreparedMedia[]> {
+  const results = await Promise.allSettled(
+    uploads.map((upload) =>
+      prepareMedia(upload.data, upload.kind, upload.ticketId, upload.name),
+    ),
+  )
+  const media = results.flatMap((result) =>
+    result.status === "fulfilled" && result.value ? [result.value] : [],
+  )
+  const failure = results.find((result) => result.status === "rejected")
+  if (failure?.status === "rejected") {
+    await deleteStoredMedia(media)
+    throw failure.reason
+  }
+  return media
 }
 
 export async function deleteStoredMedia(rows: Array<{ storageKey: string }>) {
@@ -104,7 +178,11 @@ export async function deleteStoredMedia(rows: Array<{ storageKey: string }>) {
 }
 
 export async function readStoredMedia(storageKey: string) {
-  if (!/^[A-Za-z0-9_-]+\.(?:png|jpg|webp|webm|mp4)$/.test(storageKey)) {
+  if (
+    !/^[A-Za-z0-9_-]+\.(?:png|jpg|webp|gif|webm|mp4|m4a|mp3|ogg|wav|pdf|json|zip|doc|docx|xls|xlsx|txt|csv)$/.test(
+      storageKey,
+    )
+  ) {
     throw new Error("Invalid media key")
   }
   return readFile(join(mediaRoot(), storageKey))
@@ -127,9 +205,10 @@ export async function pruneOrphanedMedia(
   await Promise.all(
     entries.map(async (entry) => {
       if (!entry.isFile()) return
-      const isMedia = /^[A-Za-z0-9_-]+\.(?:png|jpg|webp|webm|mp4)$/.test(
-        entry.name,
-      )
+      const isMedia =
+        /^[A-Za-z0-9_-]+\.(?:png|jpg|webp|gif|webm|mp4|m4a|mp3|ogg|wav|pdf|json|zip|doc|docx|xls|xlsx|txt|csv)$/.test(
+          entry.name,
+        )
       const isTemporary = entry.name.endsWith(".tmp")
       if ((!isMedia && !isTemporary) || activeStorageKeys.has(entry.name)) {
         return
