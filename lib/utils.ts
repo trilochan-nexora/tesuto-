@@ -43,3 +43,32 @@ export function formatDate(iso: string) {
     year: "numeric",
   })
 }
+
+/**
+ * "Mozilla/5.0 (X11; Linux x86_64) … Chrome/151.0.0.0 Safari/537.36" →
+ * "Chrome 151 · Linux". Anything that isn't a raw UA string passes through.
+ */
+export function describeUserAgent(value: string | undefined | null): string {
+  const ua = String(value ?? "")
+  if (!/^Mozilla\//.test(ua)) return ua
+  const pick = (re: RegExp) => ua.match(re)?.[1]
+  const browser =
+    (pick(/Edg\/(\d+)/) && `Edge ${pick(/Edg\/(\d+)/)}`) ||
+    (pick(/OPR\/(\d+)/) && `Opera ${pick(/OPR\/(\d+)/)}`) ||
+    (pick(/Firefox\/(\d+)/) && `Firefox ${pick(/Firefox\/(\d+)/)}`) ||
+    (pick(/Chrome\/(\d+)/) && `Chrome ${pick(/Chrome\/(\d+)/)}`) ||
+    (pick(/Version\/(\d+).*Safari/) && `Safari ${pick(/Version\/(\d+).*Safari/)}`) ||
+    "Browser"
+  const os = /iPhone|iPad/.test(ua)
+    ? "iOS"
+    : /Android/.test(ua)
+      ? "Android"
+      : /Mac OS X/.test(ua)
+        ? "macOS"
+        : /Windows/.test(ua)
+          ? "Windows"
+          : /Linux/.test(ua)
+            ? "Linux"
+            : ""
+  return os ? `${browser} · ${os}` : browser
+}

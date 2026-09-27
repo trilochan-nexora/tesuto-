@@ -462,19 +462,29 @@
   .sys { color: var(--muted); font-size: 12px; text-align: center }
 
   .foot { border-top: 1px solid var(--line); background: var(--bg) }
-  .metaedit { padding: 12px 14px 4px; display: flex; flex-direction: column; gap: 8px }
-  .metaedit .r { display: flex; align-items: center; gap: 10px }
-  .metaedit label { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: var(--muted); width: 62px }
-  .metaedit select { flex: 1; background: var(--card); color: var(--text); border: 1px solid var(--line);
-    border-radius: 8px; padding: 7px 9px; font-size: 13px; font-family: inherit }
-  .shotrow { display: block; margin-bottom: 12px }
-  .shotrow .shot { display: block; width: 100%; max-height: 220px; border-radius: 8px;
-    border: 1px solid var(--line); object-fit: contain; background: var(--card); cursor: zoom-in }
-  .metaedit a, .metaedit code { flex: 1; min-width: 0; font-size: 12px; overflow: hidden;
-    text-overflow: ellipsis; white-space: nowrap }
-  .metaedit a { color: var(--accent); text-decoration: none }
-  .metaedit code { color: var(--muted); font-family: ui-monospace, SFMono-Regular, monospace }
-  .ctxbox { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--card);
+  /* issue view */
+  .iv-sec { margin-bottom: 16px }
+  .iv-lbl { margin: 0 0 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--muted) }
+  .shotwrap { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--line);
+    background: var(--card); cursor: zoom-in }
+  .shotwrap img { display: block; width: 100%; height: auto }
+  .hl { position: absolute; border: 2px solid #ef4444; border-radius: 3px; pointer-events: none;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,.32) }
+  .iv-rec { display: block; width: 100%; border-radius: 8px; border: 1px solid var(--line);
+    background: #000; margin-top: 8px }
+  .facts { display: grid; grid-template-columns: 64px minmax(0,1fr); gap: 7px 10px; margin: 0;
+    padding: 10px 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); font-size: 12px }
+  .facts dt { color: var(--muted); font-weight: 600 }
+  .facts dd { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text) }
+  .facts dd a { color: var(--text); text-decoration: underline; text-underline-offset: 2px }
+  .facts code { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11.5px }
+  .triage { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+  .triage label { display: flex; flex-direction: column; gap: 5px; font-size: 10.5px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+  .triage select { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 9px; font-size: 13px; font-weight: 400; font-family: inherit; letter-spacing: 0; text-transform: none }
+  .ctxbox { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--card);
     border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px }
   .ctxbox .envline { font-size: 11.5px; color: var(--muted) }
   .ctxbox .ctxtitle { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: var(--muted);
@@ -559,8 +569,9 @@
   .img-lightbox { position: fixed; inset: 0; z-index: 2147483003; background: rgba(0,0,0,.78);
     display: flex; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out;
     pointer-events: auto }
-  .img-lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.5); cursor: default }
+  .lb-frame { position: relative; display: inline-block; max-width: 100%; cursor: default }
+  .lb-frame img { display: block; max-width: calc(100vw - 48px); max-height: calc(100vh - 48px);
+    border-radius: 8px; box-shadow: 0 20px 60px rgba(0,0,0,.5) }
   .img-lightbox .close { position: fixed; top: 16px; right: 16px; width: 36px; height: 36px;
     border-radius: 50%; border: none; background: rgba(255,255,255,.14); color: #fff;
     display: grid; place-items: center; cursor: pointer }
@@ -1399,6 +1410,58 @@
     }, 4000)
   }
 
+  // Where the picked element sat on screen at capture time, as % of the
+  // viewport — lines up with the screenshot, which is a frame of that viewport.
+  function elementBox(snap) {
+    const v = snap && snap.view
+    if (!v) return null
+    const n = [v.x, v.y, v.w, v.h, v.vw, v.vh].map(Number)
+    if (n.some((x) => !Number.isFinite(x)) || n[4] <= 0 || n[5] <= 0) return null
+    const pct = (a, b) => Math.min(100, Math.max(0, (a / b) * 100))
+    return {
+      left: pct(n[0], n[4]),
+      top: pct(n[1], n[5]),
+      width: pct(n[2], n[4]),
+      height: pct(n[3], n[5]),
+    }
+  }
+  function boxStyle(b) {
+    return `left:${b.left}%;top:${b.top}%;width:${Math.max(b.width, 1.5)}%;height:${Math.max(b.height, 1.5)}%`
+  }
+  // Raw UA → "Chrome 151 · Linux" (same rules as lib/utils describeUserAgent).
+  function describeUserAgent(value) {
+    const ua = String(value || "")
+    if (!/^Mozilla\//.test(ua)) return ua
+    const pick = (re) => (ua.match(re) || [])[1]
+    const browser =
+      (pick(/Edg\/(\d+)/) && `Edge ${pick(/Edg\/(\d+)/)}`) ||
+      (pick(/OPR\/(\d+)/) && `Opera ${pick(/OPR\/(\d+)/)}`) ||
+      (pick(/Firefox\/(\d+)/) && `Firefox ${pick(/Firefox\/(\d+)/)}`) ||
+      (pick(/Chrome\/(\d+)/) && `Chrome ${pick(/Chrome\/(\d+)/)}`) ||
+      (pick(/Version\/(\d+).*Safari/) && `Safari ${pick(/Version\/(\d+).*Safari/)}`) ||
+      "Browser"
+    const os = /iPhone|iPad/.test(ua)
+      ? "iOS"
+      : /Android/.test(ua)
+        ? "Android"
+        : /Mac OS X/.test(ua)
+          ? "macOS"
+          : /Windows/.test(ua)
+            ? "Windows"
+            : /Linux/.test(ua)
+              ? "Linux"
+              : ""
+    return os ? `${browser} · ${os}` : browser
+  }
+  // Descriptions written in the dashboard are sanitized rich text; show them
+  // as plain text here instead of leaking tags. DOMParser never runs scripts.
+  function plainText(html) {
+    const s = String(html || "")
+    if (!/[<&]/.test(s)) return s
+    const doc = new DOMParser().parseFromString(s, "text/html")
+    return (doc.body.textContent || "").trim()
+  }
+
   function renderIssue() {
     const it = state.issue
     if (!it) {
@@ -1417,17 +1480,130 @@
           go(state.issueFrom || "page")
         },
         title: it.title,
-        sub: `${it.key} · ${it.statusLabel}`,
-        idColor: (it.reporter && it.reporter.color) || ACCENT,
+        sub: `${it.key} · ${it.statusLabel} · ${plabel(it.priority || "medium")}`,
       }),
     )
 
     const body = document.createElement("div")
     body.className = "body"
+
+    const screenshotUrl = safeImageUrl(it.screenshotUrl)
+    const recordingUrl = safeHttpUrl(it.recordingUrl)
+    const sourceUrl = safeHttpUrl(it.sourceUrl)
+    const snap = it.domSnapshot || {}
+    const box = elementBox(snap)
+    const ctx = it.context || {}
+
+    // 1 · Evidence — what the reporter saw, with the exact element outlined.
+    if (screenshotUrl || recordingUrl) {
+      const sec = document.createElement("section")
+      sec.className = "iv-sec"
+      sec.innerHTML = `<p class="iv-lbl">Evidence</p>${
+        screenshotUrl
+          ? `<div class="shotwrap" title="Click to enlarge"><img alt="Screenshot of the reported page" src="${escapeHtml(
+              screenshotUrl,
+            )}" />${box ? `<span class="hl" style="${boxStyle(box)}"></span>` : ""}</div>`
+          : ""
+      }${
+        recordingUrl
+          ? `<video class="iv-rec" controls preload="metadata" src="${escapeHtml(recordingUrl)}"></video>`
+          : ""
+      }`
+      const wrap = sec.querySelector(".shotwrap")
+      if (wrap) {
+        wrap.addEventListener("click", () => openImageLightbox(screenshotUrl, box))
+        wrap.querySelector("img").addEventListener("error", () => wrap.remove())
+      }
+      body.appendChild(sec)
+    }
+
+    // 2 · Where & what — enough to reproduce without asking the reporter.
+    const env = [describeUserAgent(ctx.browser), ctx.os, ctx.viewport]
+      .filter(Boolean)
+      .join(" · ")
+    const facts = [
+      sourceUrl
+        ? [
+            "Page",
+            `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(
+              sourceUrl,
+            )}">${escapeHtml(trimUrl(sourceUrl))}</a>`,
+          ]
+        : null,
+      snap.selector ? ["Element", `<code title="${escapeHtml(snap.selector)}">${escapeHtml(snap.selector)}</code>`] : null,
+      snap.text ? ["Text", `“${escapeHtml(snap.text)}”`] : null,
+      env
+        ? ["Browser", `<span title="${escapeHtml(ctx.browser || "")}">${escapeHtml(env)}</span>`]
+        : null,
+      [
+        "Reported",
+        `${escapeHtml((it.reporter && it.reporter.name) || "Someone")} · ${escapeHtml(ago(it.createdAt))} ago`,
+      ],
+    ].filter(Boolean)
+    const where = document.createElement("section")
+    where.className = "iv-sec"
+    where.innerHTML = `<p class="iv-lbl">Where &amp; what</p><dl class="facts">${facts
+      .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`)
+      .join("")}</dl>`
+    body.appendChild(where)
+
+    // 3 · Diagnostics — console errors and failed requests from page load.
+    const errs = Array.isArray(ctx.consoleErrors) ? ctx.consoleErrors : []
+    const reqs = Array.isArray(ctx.failedRequests) ? ctx.failedRequests : []
+    if (errs.length || reqs.length) {
+      const diag = document.createElement("section")
+      diag.className = "iv-sec"
+      diag.innerHTML = `<p class="iv-lbl">Diagnostics</p><div class="ctxbox">${
+        errs.length
+          ? `<span class="ctxtitle">Console errors · ${errs.length}</span>${errs
+              .map((l) => `<code class="errline">${escapeHtml(l)}</code>`)
+              .join("")}`
+          : ""
+      }${
+        reqs.length
+          ? `<span class="ctxtitle">Failed requests · ${reqs.length}</span>${reqs
+              .map((l) => `<code class="reqline">${escapeHtml(l)}</code>`)
+              .join("")}`
+          : ""
+      }</div>`
+      body.appendChild(diag)
+    }
+
+    // 4 · Triage
+    const tri = document.createElement("section")
+    tri.className = "iv-sec triage"
+    tri.innerHTML = `<label>Status<select id="ie-status">${state.columns
+      .map(
+        (c) =>
+          `<option value="${escapeHtml(c.id)}"${c.id === it.status ? " selected" : ""}>${escapeHtml(c.label)}</option>`,
+      )
+      .join("")}</select></label><label>Priority<select id="ie-prio">${PRIORITIES.map(
+      (p) => `<option value="${p}"${p === it.priority ? " selected" : ""}>${plabel(p)}</option>`,
+    ).join("")}</select></label>`
+    tri.querySelector("#ie-prio").addEventListener("change", (e) =>
+      patchIssue({ priority: e.target.value }),
+    )
+    tri.querySelector("#ie-status").addEventListener("change", (e) =>
+      patchIssue({ status: e.target.value }),
+    )
+    body.appendChild(tri)
+
+    // 5 · Thread — description first, then comments.
+    const thread = document.createElement("section")
+    thread.className = "iv-sec"
+    thread.innerHTML = `<p class="iv-lbl">Conversation</p>`
     const msgs = document.createElement("div")
     msgs.className = "msgs"
-    if (it.description) {
-      msgs.appendChild(bubble({ body: it.description, author: it.reporter, createdAt: it.createdAt, me: state.me && it.reporter && it.reporter.name === state.me.name }))
+    const desc = plainText(it.description)
+    if (desc) {
+      msgs.appendChild(
+        bubble({
+          body: desc,
+          author: it.reporter,
+          createdAt: it.createdAt,
+          me: state.me && it.reporter && it.reporter.name === state.me.name,
+        }),
+      )
     }
     state.thread.forEach((c) =>
       msgs.appendChild(
@@ -1439,121 +1615,29 @@
         }),
       ),
     )
-    if (!it.description && !state.thread.length) {
+    if (!desc && !state.thread.length) {
       msgs.innerHTML = `<div class="sys">No comments yet — start the thread.</div>`
     }
-    body.appendChild(msgs)
+    thread.appendChild(msgs)
+    body.appendChild(thread)
     shell.appendChild(body)
-    requestAnimationFrame(() => {
-      body.scrollTop = body.scrollHeight
-    })
-
-    // footer: priority/status editors + screenshot thumb + reply
-    const foot = document.createElement("div")
-    foot.className = "foot"
-
-    const screenshotUrl = safeImageUrl(it.screenshotUrl)
-    const sourceUrl = safeHttpUrl(it.sourceUrl)
-
-    const me = document.createElement("div")
-    me.className = "metaedit"
-    me.innerHTML = `
-      ${
-        screenshotUrl
-          ? `<div class="shotrow"><img class="shot" alt="screenshot" src="${escapeHtml(
-              screenshotUrl,
-            )}" /></div>`
-          : ""
-      }
-      ${
-        sourceUrl
-          ? `<div class="r"><label>Page</label><a href="${escapeHtml(
-              sourceUrl,
-            )}" target="_blank" rel="noopener noreferrer">${escapeHtml(
-              trimUrl(sourceUrl),
-            )}</a></div>`
-          : ""
-      }
-      ${
-        it.domSnapshot && it.domSnapshot.selector
-          ? `<div class="r"><label>Element</label><code>${escapeHtml(
-              it.domSnapshot.selector,
-            )}</code></div>`
-          : ""
-      }
-      <div class="r"><label>Priority</label>
-        <select id="ie-prio">${PRIORITIES.map(
-          (p) =>
-            `<option value="${p}"${p === it.priority ? " selected" : ""}>${plabel(p)}</option>`,
-        ).join("")}</select></div>
-      <div class="r"><label>Status</label>
-        <select id="ie-status">${state.columns
-          .map(
-            (c) =>
-              `<option value="${escapeHtml(c.id)}"${c.id === it.status ? " selected" : ""}>${escapeHtml(
-                c.label,
-              )}</option>`,
-          )
-          .join("")}</select></div>`
-    foot.appendChild(me)
-    const shot = me.querySelector(".shot")
-    if (shot) {
-      shot.addEventListener("click", () => openImageLightbox(screenshotUrl))
-      shot.addEventListener("error", () => {
-        const r = shot.closest(".shotrow")
-        if (r) r.remove()
+    // Open at the evidence, not the last message — only jump to the bottom
+    // right after this browser posted a reply.
+    if (state.scrollThreadToEnd) {
+      state.scrollThreadToEnd = false
+      requestAnimationFrame(() => {
+        body.scrollTop = body.scrollHeight
       })
     }
-    // Screenshot + context live in the scrolling body, not the fixed footer —
-    // in the footer they ate the panel's height and nothing could scroll.
-    const shotRow = me.querySelector(".shotrow")
-    if (shotRow) body.insertBefore(shotRow, msgs)
-    me.querySelector("#ie-prio").addEventListener("change", (e) =>
-      patchIssue({ priority: e.target.value }),
-    )
-    me.querySelector("#ie-status").addEventListener("change", (e) =>
-      patchIssue({ status: e.target.value }),
-    )
 
-    // Everything the reporter's browser saw at the moment of filing — the
-    // whole point of a widget report over a Slack message: no "what browser
-    // were you on?" back-and-forth before anyone can start fixing it.
-    const ctx = it.context
-    if (
-      ctx &&
-      (ctx.browser ||
-        ctx.os ||
-        ctx.viewport ||
-        (ctx.consoleErrors && ctx.consoleErrors.length) ||
-        (ctx.failedRequests && ctx.failedRequests.length))
-    ) {
-      const box = document.createElement("div")
-      box.className = "ctxbox"
-      const envParts = [ctx.browser, ctx.os, ctx.viewport].filter(Boolean)
-      box.innerHTML = `
-        ${envParts.length ? `<span class="envline">${escapeHtml(envParts.join(" · "))}</span>` : ""}
-        ${
-          ctx.consoleErrors && ctx.consoleErrors.length
-            ? `<span class="ctxtitle">Console errors</span>${ctx.consoleErrors
-                .map((l) => `<code class="errline">${escapeHtml(l)}</code>`)
-                .join("")}`
-            : ""
-        }
-        ${
-          ctx.failedRequests && ctx.failedRequests.length
-            ? `<span class="ctxtitle">Failed requests</span>${ctx.failedRequests
-                .map((l) => `<code class="reqline">${escapeHtml(l)}</code>`)
-                .join("")}`
-            : ""
-        }`
-      body.insertBefore(box, msgs)
-    }
-
+    // Footer: reply only.
+    const foot = document.createElement("div")
+    foot.className = "foot"
     const cp = document.createElement("form")
     cp.className = "compose"
     cp.innerHTML = `<button type="button" class="att" title="Attach (coming soon)" disabled>${I.clip}</button>
-      <input id="ie-reply" placeholder="Type a reply…" autocomplete="off" />
-      <button class="send" type="submit">${I.send}</button>`
+      <input id="ie-reply" placeholder="Type a reply…" autocomplete="off" aria-label="Reply" />
+      <button class="send" type="submit" aria-label="Send">${I.send}</button>`
     foot.appendChild(cp)
     cp.addEventListener("submit", async (e) => {
       e.preventDefault()
@@ -1564,15 +1648,14 @@
       try {
         const c = await apiPost(`/widget/issues/${it.id}/comments`, { body: v })
         state.thread.push(c)
+        state.scrollThreadToEnd = true
         render()
       } catch (err) {
         console.error("[tesuto]", err)
         inp.value = v
       }
     })
-
     shell.appendChild(foot)
-    cp.querySelector("#ie-reply").focus()
   }
 
   async function patchIssue(patch) {
@@ -1752,18 +1835,27 @@
     if (pkHint) pkHint.style.display = "none"
   }
 
-  function openImageLightbox(src) {
+  function openImageLightbox(src, box) {
     const overlay = document.createElement("div")
     overlay.className = "img-lightbox"
+    const frame = document.createElement("div")
+    frame.className = "lb-frame"
     const img = document.createElement("img")
     img.src = src
     img.alt = "Screenshot"
+    frame.appendChild(img)
+    if (box) {
+      const hl = document.createElement("span")
+      hl.className = "hl"
+      hl.setAttribute("style", boxStyle(box))
+      frame.appendChild(hl)
+    }
     const close = document.createElement("button")
     close.type = "button"
     close.className = "close"
     close.setAttribute("aria-label", "Close")
     close.innerHTML = I.x
-    overlay.append(img, close)
+    overlay.append(frame, close)
     function dismiss() {
       overlay.remove()
       document.removeEventListener("keydown", onKey)
@@ -1772,7 +1864,7 @@
       if (e.key === "Escape") dismiss()
     }
     overlay.addEventListener("click", dismiss)
-    img.addEventListener("click", (e) => e.stopPropagation())
+    frame.addEventListener("click", (e) => e.stopPropagation())
     close.addEventListener("click", dismiss)
     document.addEventListener("keydown", onKey)
     root.appendChild(overlay)

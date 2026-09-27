@@ -43,7 +43,7 @@ import {
   type TicketPriority,
   TYPE_META,
 } from "@/lib/types"
-import { cn, formatDate } from "@/lib/utils"
+import { cn, describeUserAgent, formatDate } from "@/lib/utils"
 
 const EVENT_LABEL: Record<string, string> = {
   created: "reported",
@@ -373,8 +373,11 @@ export default function TicketDetailPage({
                   Session context
                 </h2>
                 {ctx.browser ? (
-                  <p className="text-sm text-muted-foreground">
-                    {[ctx.browser, ctx.os, ctx.viewport]
+                  <p
+                    className="text-sm text-muted-foreground"
+                    title={ctx.browser}
+                  >
+                    {[describeUserAgent(ctx.browser), ctx.os, ctx.viewport]
                       .filter(Boolean)
                       .join("  ·  ")}
                   </p>

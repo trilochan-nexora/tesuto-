@@ -122,6 +122,7 @@ export default function WidgetPage() {
     ;(window as unknown as { __TESUTO__?: unknown }).__TESUTO__ = {
       token: resolved.token,
       assertion,
+      hostName: "the demo app",
     }
     const s = document.createElement("script")
     s.id = "tesuto-widget-script"
