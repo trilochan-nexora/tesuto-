@@ -273,7 +273,24 @@ export const useStore = create<StoreState>((set, get) => {
       // currentUser still undefined for one render, crashing anything that
       // reads currentUser.id without optional chaining.
       const me = b.users.find((u) => u.id === b.me.id)
-      set(() => ({
+      // Comments are cached per ticket and never re-fetched on their own —
+      // drop the cache for any ticket whose comment count moved, so an open
+      // ticket page reloads its thread and new replies actually show up.
+      const prevCounts = new Map(
+        get().tickets.map((t) => [t.id, t.commentCount]),
+      )
+      const staleThreads = new Set(
+        b.tickets
+          .filter(
+            (t) =>
+              prevCounts.has(t.id) && prevCounts.get(t.id) !== t.commentCount,
+          )
+          .map((t) => t.id),
+      )
+      set((state) => ({
+        loadedCommentTicketIds: state.loadedCommentTicketIds.filter(
+          (id) => !staleThreads.has(id),
+        ),
         _meId: b.me.id,
         projects: b.projects,
         columns: b.columns,
@@ -812,33 +829,56 @@ export const useStore = create<StoreState>((set, get) => {
  */
 export function StoreEffects() {
   useEffect(() => {
-    if (clientReady) return
-    clientReady = true
+    // One-time init only. The polling below must NOT sit behind this guard:
+    // StrictMode mounts → cleans up → remounts, so a guarded subscription gets
+    // torn down on the first cleanup and never re-registered (live updates
+    // silently never ran in development).
+    if (!clientReady) {
+      clientReady = true
+      setUnauthorizedHandler(() => useStore.getState()._reset())
+      try {
+        window.localStorage.removeItem("tesuto:v3")
+      } catch {}
+      useStore
+        .getState()
+        ._load()
+        .catch(() => {})
+    }
 
-    setUnauthorizedHandler(() => useStore.getState()._reset())
-    try {
-      window.localStorage.removeItem("tesuto:v3")
-    } catch {}
-
-    useStore
-      .getState()
-      ._load()
-      .catch(() => {})
-
-    // Keep the board fresh so issues filed elsewhere (the embedded widget on
-    // another origin, a teammate) show up without a manual reload.
-    const pull = (minAge: number) => {
+    // Keep the board live so issues filed elsewhere (the embedded widget, a
+    // teammate) show up without a reload. Poll a ~70-byte version fingerprint
+    // and only re-fetch the full bootstrap when it actually changed.
+    let lastVersion: string | null = null
+    let checking = false
+    const pull = async () => {
       const s = useStore.getState()
       if (
-        document.visibilityState === "visible" &&
-        s.authState === "authed" &&
-        Date.now() - s._lastLoad > minAge
+        checking ||
+        document.visibilityState !== "visible" ||
+        s.authState !== "authed" ||
+        s.syncState === "syncing"
       ) {
-        void s._load().catch(() => {})
+        return
+      }
+      checking = true
+      try {
+        const { version } = await api.get<{ version: string }>(
+          "/bootstrap/version",
+        )
+        if (version !== lastVersion) {
+          const first = lastVersion === null
+          lastVersion = version
+          // First check right after the initial load has nothing new to fetch.
+          if (!first || Date.now() - s._lastLoad > 5_000) await s._load()
+        }
+      } catch {
+        // transient — the next tick retries
+      } finally {
+        checking = false
       }
     }
-    const onFocus = () => pull(3_000)
-    const poll = setInterval(() => pull(12_000), 12_000)
+    const onFocus = () => void pull()
+    const poll = setInterval(() => void pull(), 4_000)
     document.addEventListener("visibilitychange", onFocus)
     window.addEventListener("focus", onFocus)
     return () => {

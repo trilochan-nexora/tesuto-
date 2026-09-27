@@ -79,3 +79,23 @@ async function loadIntegrations(): Promise<Integrations> {
     },
   }
 }
+
+/**
+ * A cheap fingerprint of everything loadBootstrap() returns. Clients poll this
+ * every few seconds and re-fetch the full payload only when it changes — live
+ * updates without re-downloading the board on every tick. Row counts catch
+ * deletes; projects/columns have no updated_at, so their rows are hashed.
+ */
+export async function loadBootstrapVersion(): Promise<string> {
+  const [row] = await prisma.$queryRaw<{ v: string }[]>`
+    SELECT md5(concat_ws('|',
+      (SELECT count(*) || ':' || coalesce(max(updated_at)::text, '') FROM tickets),
+      (SELECT count(*) || ':' || coalesce(max(created_at)::text, '') FROM comments),
+      (SELECT count(*) || ':' || coalesce(max(updated_at)::text, '') FROM users),
+      (SELECT count(*) || ':' || coalesce(max(updated_at)::text, '') FROM docs),
+      (SELECT coalesce(max(updated_at)::text, '') FROM settings),
+      (SELECT md5(coalesce(string_agg(p::text, ',' ORDER BY p.id), '')) FROM projects p),
+      (SELECT md5(coalesce(string_agg(c::text, ',' ORDER BY c.id), '')) FROM columns c)
+    )) AS v`
+  return row.v
+}
