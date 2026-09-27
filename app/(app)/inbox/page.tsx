@@ -10,7 +10,7 @@ import {
 import { useMemo, useState } from "react"
 import { AppHeader } from "@/components/app-header"
 import { Pagination, usePagination } from "@/components/pagination"
-import { FILTER_LABEL, SavedViewsBar } from "@/components/saved-views-bar"
+import { SavedViewsBar } from "@/components/saved-views-bar"
 import { TicketRow } from "@/components/ticket-row"
 import {
   Card,
@@ -31,6 +31,7 @@ import { slaFor } from "@/lib/sla"
 import { useStore } from "@/lib/store"
 import {
   DEFAULT_COLUMNS,
+  FILTER_LABEL,
   INBOX_FILTERS,
   type InboxFilter,
   type SavedView,

@@ -12,16 +12,13 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { api } from "@/lib/api-client"
 import { useStore } from "@/lib/store"
-import { INBOX_FILTERS, type InboxFilter, type SavedView } from "@/lib/types"
+import {
+  FILTER_LABEL,
+  INBOX_FILTERS,
+  type InboxFilter,
+  type SavedView,
+} from "@/lib/types"
 import { cn } from "@/lib/utils"
-
-export const FILTER_LABEL: Record<InboxFilter, string> = {
-  all: "All",
-  open: "Open",
-  mine: "Mine",
-  urgent: "Urgent",
-  overdue: "Overdue",
-}
 
 // Views used to live in localStorage; move any left there onto the server once.
 const LEGACY_KEY = "tesuto:inbox-views:v1"
@@ -33,21 +30,25 @@ async function importLegacyViews() {
     return false
   }
   if (!Array.isArray(legacy)) return false
-  for (const v of legacy.slice(0, 12)) {
-    if (
-      typeof v?.name !== "string" ||
-      typeof v?.query !== "string" ||
-      !(INBOX_FILTERS as readonly string[]).includes(v?.filter)
+  const valid = legacy
+    .slice(0, 12)
+    .filter(
+      (v): v is { name: string; query: string; filter: InboxFilter } =>
+        typeof v?.name === "string" &&
+        typeof v?.query === "string" &&
+        (INBOX_FILTERS as readonly string[]).includes(v?.filter),
     )
-      continue
-    await api
-      .post("/saved-views", {
-        name: v.name.slice(0, 40),
-        filter: v.filter,
-        query: v.query.slice(0, 100),
-      })
-      .catch(() => {})
-  }
+  await Promise.all(
+    valid.map((v) =>
+      api
+        .post("/saved-views", {
+          name: v.name.slice(0, 40),
+          filter: v.filter,
+          query: v.query.slice(0, 100),
+        })
+        .catch(() => {}),
+    ),
+  )
   try {
     localStorage.removeItem(LEGACY_KEY)
   } catch {}

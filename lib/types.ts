@@ -383,6 +383,13 @@ export const INBOX_FILTERS = [
   "overdue",
 ] as const
 export type InboxFilter = (typeof INBOX_FILTERS)[number]
+export const FILTER_LABEL: Record<InboxFilter, string> = {
+  all: "All",
+  open: "Open",
+  mine: "Mine",
+  urgent: "Urgent",
+  overdue: "Overdue",
+}
 
 export interface SavedView {
   id: string
