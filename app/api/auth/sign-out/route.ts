@@ -1,10 +1,17 @@
-import { handler } from "@/lib/api"
-import { bearerFrom, destroySession } from "@/lib/auth"
+import { handler, ok } from "@/lib/api"
+import {
+  clearAppSessionCookie,
+  destroySession,
+  sessionTokenFrom,
+} from "@/lib/auth"
 
 export const POST = handler({
   auth: false,
   run: async (_input, { req }) => {
-    await destroySession(bearerFrom(req))
-    return { ok: true }
+    await destroySession(sessionTokenFrom(req))
+    return ok(
+      { ok: true },
+      { headers: { "Set-Cookie": clearAppSessionCookie() } },
+    )
   },
 })

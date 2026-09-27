@@ -81,6 +81,25 @@ export async function sendEmail(to: string, subject: string, html: string) {
   }
 }
 
+/** Authentication mail must fail closed instead of being silently skipped. */
+export async function sendAuthEmail(to: string, subject: string, html: string) {
+  const key = resendApiKey()
+  const from = emailFrom()
+  if (!key || !from) throw new Error("Email authentication is not configured")
+  const resend = new Resend(key)
+  const { error } = await resend.emails.send({ from, to, subject, html })
+  if (error) throw new Error(error.message || "Authentication email failed")
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
+}
+
 /** Resolve a user's email for delivery — never the actor, never inactive. */
 async function emailFor(
   userId: string | null | undefined,
@@ -140,8 +159,8 @@ async function deliver(opts: NotifyOpts) {
       : await emailFor(t.assigneeId, opts.actorId)
   if (email) {
     const subject = `[${t.project?.key ?? ""}] ${t.key}: ${t.title}`
-    const html = `<p><a href="${ticketHref(t)}"><strong>${t.key}</strong> ${t.title}</a>
-</p><p>${line}${project ? ` — ${project}` : ""}</p>`
+    const html = `<p><a href="${escapeHtml(ticketHref(t))}"><strong>${escapeHtml(t.key)}</strong> ${escapeHtml(t.title)}</a>
+</p><p>${escapeHtml(line)}${project ? ` — ${escapeHtml(project)}` : ""}</p>`
     await sendEmail(email, subject, html)
   }
 }

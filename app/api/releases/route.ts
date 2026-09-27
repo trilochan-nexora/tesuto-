@@ -6,10 +6,14 @@ import { releasesWebhookSecret } from "@/lib/env"
 import { requireIntegration } from "@/lib/services/settings"
 
 const ReleaseSchema = z.object({
-  version: z.string().min(1),
-  repo: z.string().min(1),
-  notesMd: z.string().min(1),
-  releaseUrl: z.string().url(),
+  version: z.string().trim().min(1).max(100),
+  repo: z.string().trim().min(1).max(200),
+  notesMd: z.string().min(1).max(500_000),
+  releaseUrl: z
+    .string()
+    .max(2_048)
+    .url()
+    .refine((value) => /^https:\/\//i.test(value), "Use an HTTPS URL"),
   /** When the release actually shipped. Defaults to now — only backfill
    *  (historical releases from before this endpoint existed) needs to set
    *  this explicitly so /releases sorts them correctly. */

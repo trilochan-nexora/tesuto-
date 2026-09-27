@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto"
 import { ZodError, type ZodTypeAny, type z } from "zod"
 import { getSessionUser, type SessionUser } from "./auth"
+import { log, logError } from "./logger"
 
 /** Every API route answers with this envelope. `error` is null on success. */
 export function ok<T>(data: T, init?: ResponseInit) {
@@ -42,7 +44,7 @@ type HandlerOpts<S extends ZodTypeAny | undefined> = {
   ) => unknown
 }
 
-function mapError(err: unknown): Response {
+function mapError(err: unknown, requestId: string): Response {
   if (err instanceof ZodError) {
     return fail("Validation failed", 422, { issues: err.issues })
   }
@@ -51,11 +53,34 @@ function mapError(err: unknown): Response {
     // worth a server log, unlike a plain 4xx client mistake. Cloudflare also
     // swaps the response body for its own error page on a 5xx status, so
     // this is often the only place the real message survives.
-    if (err.status >= 500) console.error("[api]", err.status, err.message)
+    if (err.status >= 500) {
+      logError("api.error", err, { requestId, status: err.status })
+    }
     return fail(err.message, err.status)
   }
-  console.error("[api]", err)
+  logError("api.error", err, { requestId, status: 500 })
   return fail("Internal error", 500)
+}
+
+function requestContext(req: Request) {
+  const incoming = req.headers.get("x-request-id") ?? ""
+  const requestId = /^[A-Za-z0-9_-]{8,128}$/.test(incoming)
+    ? incoming
+    : randomUUID()
+  const startedAt = performance.now()
+  const pathname = new URL(req.url).pathname
+  const finish = (response: Response) => {
+    response.headers.set("X-Request-Id", requestId)
+    log("info", "api.request", {
+      requestId,
+      method: req.method,
+      pathname,
+      status: response.status,
+      durationMs: Math.round(performance.now() - startedAt),
+    })
+    return response
+  }
+  return { requestId, finish }
 }
 
 /**
@@ -75,11 +100,13 @@ export function widgetRoute(
     // function type's param as optional whenever there's a default.
     route: { params: Promise<Record<string, string>> },
   ): Promise<Response> => {
+    const { requestId, finish } = requestContext(req)
     try {
       const params = await route.params
-      return ok(await run(req, params))
+      const result = await run(req, params)
+      return finish(result instanceof Response ? result : ok(result))
     } catch (err) {
-      return mapError(err)
+      return finish(mapError(err, requestId))
     }
   }
 }
@@ -97,11 +124,20 @@ export function handler<S extends ZodTypeAny | undefined = undefined>(
     // See widgetRoute() above for why this is required, not optional.
     route: { params: Promise<Record<string, string>> },
   ): Promise<Response> => {
+    const { requestId, finish } = requestContext(req)
     try {
       const needAuth = opts.auth !== false
       const user = needAuth ? await getSessionUser(req) : null
-      if (needAuth && !user) return fail("Unauthorized", 401)
-      if (opts.admin && user?.role !== "admin") return fail("Forbidden", 403)
+      if (needAuth && !user) return finish(fail("Unauthorized", 401))
+      if (opts.admin && user?.role !== "admin") {
+        return finish(fail("Forbidden", 403))
+      }
+      if (needAuth && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+        const origin = req.headers.get("origin")
+        if (origin && origin !== new URL(req.url).origin) {
+          return finish(fail("Cross-origin request rejected", 403))
+        }
+      }
 
       const params = await route.params
 
@@ -119,9 +155,9 @@ export function handler<S extends ZodTypeAny | undefined = undefined>(
         params,
         req,
       })
-      return ok(result)
+      return finish(result instanceof Response ? result : ok(result))
     } catch (err) {
-      return mapError(err)
+      return finish(mapError(err, requestId))
     }
   }
 }

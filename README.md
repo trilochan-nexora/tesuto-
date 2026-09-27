@@ -31,6 +31,7 @@ Other scripts:
 bun run build      # production build (type-checked, `prisma generate` first)
 bun run start      # serve the production build
 bun run smoke      # end-to-end replay of the client's API calls (server must be up)
+bun run cleanup    # remove expired auth rows and abandoned media uploads
 bun run lint       # biome lint
 bun run format     # biome format --write
 bun run check      # biome check --write  (lint + format + import sort)
@@ -51,7 +52,13 @@ Copy `.env.example` → `.env` and configure:
 | `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` | GitHub OAuth app credentials. Set the callback URL to `APP_URL/api/github/callback`. |
 | `GITHUB_REDIRECT_URI` | Optional override for the OAuth callback (defaults to `<origin>/api/github/callback`). |
 | `APP_SECRET` | Long random string — encrypts GitHub access tokens at rest and signs OAuth state. Required for GitHub connect/sync. |
+| `MEDIA_STORAGE_DIR` | Private persistent volume for screenshots and recordings. Required in production. |
+| `MAINTENANCE_SECRET` | Optional bearer secret for scheduler calls to `POST /api/maintenance/cleanup`. |
 | `DATABASE_URL` | Postgres connection string (matches `docker-compose.yml`). |
+
+For container probes, use `GET /api/health/live` for process liveness and
+`GET /api/health/ready` for database plus media-volume readiness. Run cleanup
+hourly using either `bun run cleanup` or the authenticated maintenance route.
 
 Two things need to line up for a GitHub sync: each **user** connects their
 account (Settings → Connections, OAuth, `repo` scope), and each **project**
@@ -109,4 +116,3 @@ back to GitHub or ClickUp.
 UI polish follows the [`impeccable`](https://impeccable.style) skill
 (`.agents/skills/impeccable`). Run its commands (e.g. `/impeccable polish`,
 `/impeccable audit`) against a surface before shipping changes to it.
-

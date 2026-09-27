@@ -1,13 +1,10 @@
 import { z } from "zod"
 import { widgetRoute } from "@/lib/api"
+import { enforceRateLimit } from "@/lib/rate-limit"
 import { widgetSignIn, widgetSignOut } from "@/lib/services/widget"
 
 const SignInSchema = z.object({
-  // Verified mode: Hearth proves its user with a signed assertion
-  // (TESUTO_WIDGET_SECRET). Legacy dev mode: plain name/email claim.
-  assertion: z.string().optional(),
-  name: z.string().min(1).optional(),
-  email: z.string().email().optional(),
+  assertion: z.string().min(1).max(2_048),
 })
 
 export function OPTIONS() {
@@ -15,6 +12,7 @@ export function OPTIONS() {
 }
 
 export const POST = widgetRoute(async (req) => {
+  enforceRateLimit(req, "widget:auth", { limit: 30, windowMs: 10 * 60 * 1000 })
   const input = SignInSchema.parse(await req.json())
   return widgetSignIn(req, input)
 })

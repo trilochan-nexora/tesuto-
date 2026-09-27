@@ -3,9 +3,9 @@ import { handler } from "@/lib/api"
 import { deleteProject, updateProject } from "@/lib/services/projects"
 
 const ProjectPatchSchema = z.object({
-  name: z.string().min(1).optional(),
-  description: z.string().optional(),
-  githubRepo: z.string().nullable().optional(),
+  name: z.string().trim().min(1).max(100).optional(),
+  description: z.string().max(2_000).optional(),
+  githubRepo: z.string().trim().max(200).nullable().optional(),
 })
 
 export const PATCH = handler({

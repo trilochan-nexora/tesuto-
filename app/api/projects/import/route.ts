@@ -4,18 +4,20 @@ import { zPriority, zType } from "@/lib/schemas"
 import { importProject } from "@/lib/services/projects"
 
 const ImportSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().default(""),
-  source: z.string(),
-  issues: z.array(
-    z.object({
-      title: z.string().min(1),
-      body: z.string().optional(),
-      type: zType,
-      priority: zPriority,
-      resolved: z.boolean(),
-    }),
-  ),
+  name: z.string().trim().min(1).max(100),
+  description: z.string().max(2_000).default(""),
+  source: z.string().max(200),
+  issues: z
+    .array(
+      z.object({
+        title: z.string().trim().min(1).max(200),
+        body: z.string().max(50_000).optional(),
+        type: zType,
+        priority: zPriority,
+        resolved: z.boolean(),
+      }),
+    )
+    .max(1_000),
 })
 
 export const POST = handler({

@@ -1,14 +1,21 @@
 import { z } from "zod"
 import { handler } from "@/lib/api"
-import { signIn } from "@/lib/services/users"
+import { enforceRateLimit } from "@/lib/rate-limit"
+import { requestSignInCode } from "@/lib/services/users"
 
 const SignInSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
+  email: z.string().trim().email().max(254),
 })
 
 export const POST = handler({
   schema: SignInSchema,
   auth: false,
-  run: (input) => signIn(input),
+  run: (input, { req }) => {
+    enforceRateLimit(req, "auth:request", {
+      limit: 5,
+      windowMs: 10 * 60 * 1000,
+      key: input.email.toLowerCase(),
+    })
+    return requestSignInCode(input)
+  },
 })

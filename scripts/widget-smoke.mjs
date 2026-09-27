@@ -33,11 +33,7 @@ function api(method, path, body) {
   if (p === "/widget/project")
     return { data: { id: "p1", key: "SAND", name: "Asterconsult" } }
   if (p === "/widget/auth" && method === "POST") {
-    const name = body?.name || "Widget"
-    currentUser =
-      name === "Widget"
-        ? { id: "widget", name: "Widget", color: "#71717a" }
-        : { id: "u1", name, color: "#7c5cff" }
+    currentUser = { id: "u1", name: "Dipen Raut", color: "#7c5cff" }
     return { data: { user: currentUser, token: `tok_${currentUser.id}` } }
   }
   if (p === "/widget/bootstrap")
@@ -118,7 +114,13 @@ const { window } = dom
 window.__TESUTO__ = {
   token: "tsto_pk_x",
   origin: "http://t.local",
-  user: { name: "Dipen Raut", email: "dipen@x.com" },
+  assertion: `${Buffer.from(
+    JSON.stringify({
+      email: "dipen@x.com",
+      name: "Dipen Raut",
+      exp: Math.floor(Date.now() / 1000) + 60,
+    }),
+  ).toString("base64url")}.test-signature`,
 }
 window.fetch = async (url, init = {}) => {
   const method = init.method || "GET"
@@ -418,16 +420,16 @@ ok(
     lastPost?.domSnapshot?.selector === "",
 )
 
-// Tesuto disconnect lands on the Tesuto sign-in page (legacy: name/email),
-// and signing back in restores the actions view.
+// Tesuto disconnect lands on a verified reconnect page without accepting a
+// self-claimed name/email, and signing back in restores the actions view.
 $(".userbar .signout").click()
 await tick()
 await tick()
 ok(
-  "disconnect shows the Tesuto sign-in page",
-  !!$("#si-name") && !!$("#si-email") && !!$("#si-go"),
+  "disconnect offers signed-assertion reconnect only",
+  !$("#si-name") && !$("#si-email") && !!$("#si-go"),
 )
-$(".form").dispatchEvent(new window.Event("submit"))
+$("#si-go").click()
 await tick()
 await tick()
 await tick()

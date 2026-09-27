@@ -12,7 +12,6 @@
  *   origin     where widget.js is served (default: this module's origin)
  *   assertion  signed host-identity assertion minted by your server (verified
  *              mode — Tesuto proves the signature before trusting the user)
- *   user       legacy dev mode — bare { name, email } claim, no proof
  *   endpoint   POST reports here as JSON instead of the localStorage fallback
  *   shortcut   keyboard toggle, e.g. "alt+b" (default "mod+shift+b")
  *   alwaysVisible  skip the 5-click corner reveal gesture (meant for public
@@ -45,9 +44,6 @@ export function initTesutoWidget(opts = {}) {
     origin: origin.replace(/\/$/, ""),
     // verified mode: signed identity assertion from your server (preferred)
     assertion: opts.assertion,
-    // legacy dev mode: the host app's signed-in user — { name, email } — so
-    // the widget needs no sign-in of its own
-    user: opts.user,
     shortcut: opts.shortcut,
     alwaysVisible: opts.alwaysVisible,
   }

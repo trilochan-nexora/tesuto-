@@ -2,11 +2,13 @@ import { HttpError } from "@/lib/api"
 import { prisma } from "@/lib/db"
 import { notifyTicketComment } from "@/lib/notify"
 
-export function listComments(ticketId: string) {
-  return prisma.comment.findMany({
+export async function listComments(ticketId: string) {
+  const rows = await prisma.comment.findMany({
     where: { ticketId },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
+    take: 200,
   })
+  return rows.reverse()
 }
 
 export async function addComment(

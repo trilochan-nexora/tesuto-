@@ -165,11 +165,13 @@ export type Ticket = {
   sourceUrl?: string
   domSnapshot?: DomSnapshot
   screenshotUrl?: string
-  /** Inline screen-recording data URL (webm/mp4), captured by the widget. */
+  /** Private media URL for a widget-captured webm/mp4 recording. */
   recordingUrl?: string
   annotations?: Annotation[]
   context?: TicketContext
   githubIssueUrl?: string
+  /** Server-provided count; comments themselves load only on the detail page. */
+  commentCount?: number
   order: number
   parentId?: string
   sprintId?: string

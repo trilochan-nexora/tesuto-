@@ -12,10 +12,10 @@ import { useStore } from "@/lib/store"
 import type { Ticket } from "@/lib/types"
 
 export function TicketRow({ ticket }: { ticket: Ticket }) {
-  const { getUser, getProject, comments } = useStore()
+  const { getUser, getProject } = useStore()
   const assignee = getUser(ticket.assigneeId)
   const project = getProject(ticket.projectId)
-  const commentCount = comments.filter((c) => c.ticketId === ticket.id).length
+  const commentCount = ticket.commentCount ?? 0
 
   return (
     <Link

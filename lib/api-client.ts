@@ -1,27 +1,6 @@
-export const TOKEN_KEY = "tesuto:token"
-
 let onUnauthorized: (() => void) | null = null
 export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn
-}
-
-export function getToken() {
-  if (typeof window === "undefined") return null
-  try {
-    return window.localStorage.getItem(TOKEN_KEY)
-  } catch {
-    return null
-  }
-}
-export function setToken(token: string) {
-  try {
-    window.localStorage.setItem(TOKEN_KEY, token)
-  } catch {}
-}
-export function clearToken() {
-  try {
-    window.localStorage.removeItem(TOKEN_KEY)
-  } catch {}
 }
 
 export class ApiError extends Error {
@@ -36,17 +15,34 @@ async function apiFetch<T = unknown>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const token = getToken()
-  const res = await fetch(`/api${path}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(init.headers ?? {}),
-    },
-  })
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 20_000)
+  const abort = () => controller.abort()
+  init.signal?.addEventListener("abort", abort, { once: true })
+  let res: Response
+  try {
+    res = await fetch(`/api${path}`, {
+      ...init,
+      signal: controller.signal,
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        ...(init.headers ?? {}),
+      },
+    })
+  } catch (error) {
+    if (controller.signal.aborted && !init.signal?.aborted) {
+      throw new ApiError("The server took too long to respond", 408)
+    }
+    if (error instanceof TypeError) {
+      throw new ApiError("Can't reach the server. Check your connection.", 0)
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeout)
+    init.signal?.removeEventListener("abort", abort)
+  }
   if (res.status === 401) {
-    clearToken()
     onUnauthorized?.()
     throw new ApiError("Unauthorized", 401)
   }
