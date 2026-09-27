@@ -21,6 +21,7 @@
     "db:seed": "bun run prisma/seed.ts",
     "smoke": "bun run scripts/assertion-check.mjs && bun run scripts/smoke.mjs && bun run scripts/widget-smoke.mjs",
     "cleanup": "bun run scripts/cleanup.mjs",
+    "media:migrate": "bun run scripts/migrate-inline-media.ts",
     "doctor": "npx react-doctor@latest"
   },
   "dependencies": {

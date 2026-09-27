@@ -14,6 +14,8 @@
  *              mode — Tesuto proves the signature before trusting the user)
  *   endpoint   POST reports here as JSON instead of the localStorage fallback
  *   shortcut   keyboard toggle, e.g. "alt+b" (default "mod+shift+b")
+ *   hostName   your app's display name in the widget ("Signed in to <hostName>");
+ *              defaults to the page hostname
  *   alwaysVisible  skip the 5-click corner reveal gesture (meant for public
  *                  embeds "in the wild") — for a trusted internal app where
  *                  the launcher should just be there for its own staff
@@ -45,6 +47,7 @@ export function initTesutoWidget(opts = {}) {
     // verified mode: signed identity assertion from your server (preferred)
     assertion: opts.assertion,
     shortcut: opts.shortcut,
+    hostName: opts.hostName,
     alwaysVisible: opts.alwaysVisible,
   }
 

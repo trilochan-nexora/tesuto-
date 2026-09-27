@@ -55,6 +55,14 @@
     attr("assertion") ||
     ""
 
+  // The embedding app's display name ("You're signed in to <HOST> as …").
+  // The widget ships to any host, so never hardcode one.
+  const HOST_NAME =
+    (typeof cfg.hostName === "string" && cfg.hostName.trim()) ||
+    attr("host-name").trim() ||
+    location.hostname ||
+    "this app"
+
   const ID_KEY = "tesuto:widget-identity"
 
   // Decode the assertion payload for *display only* (who you'd sign in as).
@@ -359,6 +367,8 @@
   root.innerHTML = `
 <style>
   :host { all: initial }
+  /* shadow DOM doesn't inherit the host page's ::selection — theme it here */
+  ::selection { background: rgba(161,161,170,.35); color: inherit }
   * { box-sizing: border-box; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif }
   .wrap { --bg:#0d0d10; --panel:#151519; --card:#1b1b21; --line:#26262e; --text:#f4f4f5;
     --muted:#a1a1aa; --accent:#f4f4f5; --accent-ink:#18181b; --accent-soft:rgba(244,244,245,.14);
@@ -988,7 +998,7 @@
       out.className = "signout"
       out.innerHTML = `${I.out}<span>Disconnect</span>`
       out.title =
-        "Disconnect this browser from Tesuto (Hearth stays signed in)"
+        `Disconnect this browser from Tesuto (${HOST_NAME} stays signed in)`
       out.addEventListener("click", () => {
         void disconnect()
       })
@@ -998,7 +1008,7 @@
     return f
   }
 
-  // Tesuto-only sign-out: kills the widget session, leaves the Hearth
+  // Tesuto-only sign-out: kills the widget session, leaves the host app's
   // session alone. No auto-reconnect until the user hits Connect again.
   async function disconnect() {
     state.manualDisconnect = true
@@ -1027,7 +1037,7 @@
       body.innerHTML = `<div class="empty">
         ${
           hostEmail
-            ? `Hearth: <b style="color:var(--text)">${escapeHtml(hostEmail)}</b><br>`
+            ? `${escapeHtml(HOST_NAME)}: <b style="color:var(--text)">${escapeHtml(hostEmail)}</b><br>`
             : ""
         }
         ${
@@ -1110,14 +1120,14 @@
     shell.appendChild(
       headEl({
         title: "Link your Tesuto account",
-        sub: link.hostEmail ? `Hearth: ${link.hostEmail}` : "",
+        sub: link.hostEmail ? `${HOST_NAME}: ${link.hostEmail}` : "",
       }),
     )
     const form = document.createElement("form")
     form.className = "form"
     if (link.step === "email") {
       form.innerHTML = `
-        <p class="note" style="margin-top:0">You're signed in to Hearth as <b style="color:var(--text)">${escapeHtml(
+        <p class="note" style="margin-top:0">You're signed in to ${escapeHtml(HOST_NAME)} as <b style="color:var(--text)">${escapeHtml(
           link.hostEmail,
         )}</b>. To file issues and comment, link the Tesuto account that belongs to you — we'll email it a code.</p>
         <label>Tesuto email</label>

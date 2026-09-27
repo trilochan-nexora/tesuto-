@@ -56,9 +56,13 @@ export async function prepareMedia(
   ticketId: string,
 ): Promise<PreparedMedia | null> {
   if (!dataUrl) return null
-  const match = /^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
+  // MediaRecorder emits params like "video/webm;codecs=vp9" — accept and drop
+  // them; the stored type is the bare MIME.
+  const match = /^data:([^;,]+)(?:;[^;,=]+=[^;,]+)*;base64,([A-Za-z0-9+/=]+)$/.exec(
+    dataUrl,
+  )
   if (!match) throw new Error("Malformed media data")
-  const mimeType = match[1]
+  const mimeType = match[1].toLowerCase()
   const config = TYPES[mimeType]
   if (!config || config.kind !== expectedKind) {
     throw new Error(`Unsupported ${expectedKind} format`)

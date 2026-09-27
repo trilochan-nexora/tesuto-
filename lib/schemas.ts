@@ -64,4 +64,5 @@ export const zScreenshot = z
 export const zRecording = z
   .string()
   .max(15_000_000)
-  .regex(/^data:video\/(?:webm|mp4);base64,[A-Za-z0-9+/=]+$/)
+  // allow codec params (Chrome's MediaRecorder: "video/webm;codecs=vp9")
+  .regex(/^data:video\/(?:webm|mp4)(?:;[^;,=]+=[^;,]+)*;base64,[A-Za-z0-9+/=]+$/)
