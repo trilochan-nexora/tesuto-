@@ -32,8 +32,8 @@ export async function GET(req: Request) {
       `/settings?github=connected&login=${encodeURIComponent(profile.login)}`,
     )
   } catch (err) {
+    // Detail stays in the server log; the URL only carries the outcome.
     console.error("[github:callback]", err)
-    const message = err instanceof Error ? err.message : "connection failed"
-    return redirect(`/settings?github=error&msg=${encodeURIComponent(message)}`)
+    return redirect("/settings?github=error")
   }
 }

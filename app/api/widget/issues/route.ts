@@ -33,7 +33,8 @@ export const GET = widgetRoute((req) => {
   const scope = url.searchParams.get("scope") === "page" ? "page" : "all"
   return widgetIssues(req, {
     scope,
-    url: url.searchParams.get("url") ?? undefined,
+    // Page URLs beyond 2 KB aren't real — cap before it reaches the DB query.
+    url: url.searchParams.get("url")?.slice(0, 2048) || undefined,
   })
 })
 

@@ -121,10 +121,14 @@ export default function SettingsPage() {
     const params = new URLSearchParams(window.location.search)
     const result = params.get("github")
     if (!result) return
+    // Never echo free text from the URL into a toast — anyone can craft a
+    // /settings?github=error&msg=... link and make it read as a Tesuto message.
     if (result === "connected") {
-      toast.success(`GitHub connected as ${params.get("login") ?? "you"}`)
+      const login = params.get("login") ?? ""
+      const valid = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i.test(login)
+      toast.success(`GitHub connected as ${valid ? login : "you"}`)
     } else if (result === "error") {
-      toast.error(params.get("msg") ?? "GitHub connection failed")
+      toast.error("GitHub connection failed — try again")
     } else if (result === "cancelled") {
       toast.info("GitHub connection was cancelled")
     } else if (result === "invalid_state") {
