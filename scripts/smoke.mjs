@@ -210,7 +210,8 @@ if (ghConfigured) {
   )
 }
 
-r = await post("/projects", { name: "Smoke Proj", description: "x" })
+// Unique per run so a crashed earlier run can't wedge this one on a name clash.
+r = await post("/projects", { name: `Smoke Proj ${Date.now()}`, description: "x" })
 const np = r.data
 assert("addProject → key + token", np?.key && np.token?.startsWith("tsto_pk_"))
 
@@ -221,15 +222,20 @@ assert("updateProject → invalid repo 422", r.status === 422)
 r = await patch(`/projects/${np.id}`, { githubRepo: null })
 assert("updateProject → githubRepo cleared", r.data?.githubRepo == null)
 
-r = await post("/columns", { label: "Smoke Col" })
+// Columns are per-project: add one to the project created above.
+r = await post("/columns", { projectId: np.id, label: "Smoke Col" })
 const nc = r.data
-r = await call("/columns")
+r = await call(`/columns?projectId=${np.id}`)
+const projectCols = r.data ?? []
+const terminalIdx = projectCols.findIndex((c) => c.terminal)
 assert(
   "addColumn → inserted before terminal",
-  r.data.map((c) => c.id).indexOf(nc.id) <
-    r.data.map((c) => c.id).indexOf("done"),
+  nc && terminalIdx >= 0 &&
+    projectCols.findIndex((c) => c.id === nc.id) < terminalIdx,
 )
-r = await del(`/columns/${nc.id}?reassignTo=${b.columns[0].id}`)
+r = await del(
+  `/columns/${nc?.id}?projectId=${np.id}&reassignTo=${projectCols[0]?.id}`,
+)
 assert("removeColumn → deleted", r.data?.deleted === nc.id)
 
 r = await patch("/me", { bio: "smoke" })

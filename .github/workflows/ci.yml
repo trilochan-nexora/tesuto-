@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Throwaway values for an ephemeral CI database — never real secrets.
+env:
+  DATABASE_URL: postgresql://tesuto:tesuto@localhost:5432/tesuto
+  APP_URL: http://localhost:3005
+  APP_SECRET: ci-only-app-secret-0123456789abcdefghijklmnop
+  TESUTO_WIDGET_SECRET: ci-only-widget-secret-0123456789abcdefghij
+  AUTH_DEV_CODE: "246810"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  check:
+    name: Typecheck, lint, build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tesuto
+          POSTGRES_PASSWORD: tesuto
+          POSTGRES_DB: tesuto
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tesuto -d tesuto"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bunx prisma generate
+      - run: bun run typecheck
+      - run: bun run lint
+      - run: bunx prisma migrate deploy
+      - run: bun run build
+
+  smoke:
+    name: Smoke tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tesuto
+          POSTGRES_PASSWORD: tesuto
+          POSTGRES_DB: tesuto
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tesuto -d tesuto"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bunx prisma generate
+      - run: bunx prisma migrate deploy
+      - run: bun run db:seed
+      # The smoke suite signs in with AUTH_DEV_CODE, which is ignored in
+      # production builds by design — so it runs against the dev server.
+      - name: Start dev server
+        run: |
+          nohup bun run dev > dev.log 2>&1 &
+          for i in $(seq 1 90); do
+            curl -fsS http://localhost:3005/api/health/live >/dev/null && exit 0
+            sleep 2
+          done
+          echo "dev server did not become ready"; cat dev.log; exit 1
+      - run: bun run smoke
+      - if: failure()
+        run: tail -n 200 dev.log
