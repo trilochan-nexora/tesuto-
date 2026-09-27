@@ -304,6 +304,16 @@ type ListRow = {
   sourceUrl: string | null
   reporter: string
   comments: number
+  /** For the widget's "already reported here" check before filing. */
+  selector?: string
+  elementText?: string
+  open: boolean
+}
+
+function snapshotField(snap: unknown, key: "selector" | "text") {
+  if (!snap || typeof snap !== "object") return undefined
+  const v = (snap as Record<string, unknown>)[key]
+  return typeof v === "string" && v ? v.slice(0, 300) : undefined
 }
 
 export async function widgetIssues(
@@ -329,6 +339,8 @@ export async function widgetIssues(
       priority: true,
       createdAt: true,
       sourceUrl: true,
+      domSnapshot: true,
+      resolvedAt: true,
       reporter: { select: { name: true } },
       _count: { select: { comments: true } },
     },
@@ -344,6 +356,9 @@ export async function widgetIssues(
       sourceUrl: r.sourceUrl,
       reporter: r.reporter.name,
       comments: r._count.comments,
+      selector: snapshotField(r.domSnapshot, "selector"),
+      elementText: snapshotField(r.domSnapshot, "text"),
+      open: !r.resolvedAt,
     }),
   )
 }

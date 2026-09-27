@@ -164,6 +164,55 @@
       }
     }
   }
+  // Repro steps: the last clicks and in-app navigations before a report, so a
+  // developer can replay what the reporter did. Never records typed text or
+  // input values; skips the widget itself and the pick/pin click.
+  const steps = []
+  function pushStep(step) {
+    steps.push(Object.assign(step, { at: new Date().toISOString() }))
+    if (steps.length > 20) steps.shift()
+  }
+  document.addEventListener(
+    "click",
+    (e) => {
+      try {
+        if (state.view === "pick" || state.view === "pin") return
+        const path = e.composedPath ? e.composedPath() : []
+        if (path.indexOf(host) !== -1) return
+        const el = e.target instanceof Element ? e.target : null
+        if (!el) return
+        const target =
+          el.closest("a,button,[role=button],label,summary,input,select,textarea") || el
+        const field = target.matches("input,select,textarea")
+        const label = field
+          ? target.getAttribute("aria-label") || target.getAttribute("name") || ""
+          : target.getAttribute("aria-label") || target.textContent || ""
+        pushStep({
+          kind: "click",
+          target: selectorFor(target).slice(0, 200),
+          text: label.trim().replace(/\s+/g, " ").slice(0, 60),
+        })
+      } catch {}
+    },
+    true,
+  )
+  let lastPath = location.pathname + location.search
+  function onNav() {
+    const now = location.pathname + location.search
+    if (now === lastPath) return
+    lastPath = now
+    pushStep({ kind: "nav", url: now.slice(0, 200) })
+  }
+  for (const m of ["pushState", "replaceState"]) {
+    const orig = history[m]
+    history[m] = function () {
+      const r = orig.apply(this, arguments)
+      onNav()
+      return r
+    }
+  }
+  window.addEventListener("popstate", onNav)
+  window.addEventListener("hashchange", onNav)
   function trimUrl(u) {
     if (!u) return "?"
     try {
@@ -479,6 +528,17 @@
   .facts dd { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text) }
   .facts dd a { color: var(--text); text-decoration: underline; text-underline-offset: 2px }
   .facts code { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11.5px }
+  .dupe { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 10px 0 4px;
+    padding: 10px 12px; border-radius: 10px; font-size: 12px; color: var(--text);
+    background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.35) }
+  .dupe span { color: var(--muted) }
+  .dupe .linkbtn { margin: 0; text-align: left; color: var(--text); text-decoration: underline }
+  .steps { margin: 0; padding: 10px 12px 10px 30px; border-radius: 10px; background: var(--card);
+    border: 1px solid var(--line); font-size: 12px; display: flex; flex-direction: column; gap: 5px }
+  .steps li { display: flex; justify-content: space-between; gap: 8px }
+  .steps li > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+  .steps code { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; color: var(--muted) }
+  .steps .when { flex: none; color: var(--muted); font-size: 11px }
   .triage { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
   .triage label { display: flex; flex-direction: column; gap: 5px; font-size: 10.5px; font-weight: 700;
     letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
@@ -1550,6 +1610,27 @@
     // 3 · Diagnostics — console errors and failed requests from page load.
     const errs = Array.isArray(ctx.consoleErrors) ? ctx.consoleErrors : []
     const reqs = Array.isArray(ctx.failedRequests) ? ctx.failedRequests : []
+    const repro = Array.isArray(ctx.steps) ? ctx.steps : []
+    if (repro.length) {
+      const filed = new Date(it.createdAt).getTime()
+      const before = (at) => {
+        const s = Math.round((filed - new Date(at).getTime()) / 1000)
+        if (!Number.isFinite(s) || s < 0) return ""
+        return s < 60 ? `${s}s before` : `${Math.round(s / 60)}m before`
+      }
+      const sec = document.createElement("section")
+      sec.className = "iv-sec"
+      sec.innerHTML = `<p class="iv-lbl">Steps before report</p><ol class="steps">${repro
+        .map((st) => {
+          const what =
+            st.kind === "nav"
+              ? `Went to <code>${escapeHtml(st.url || "")}</code>`
+              : `Clicked ${st.text ? `“${escapeHtml(st.text)}” ` : ""}<code>${escapeHtml(st.target || "")}</code>`
+          return `<li><span>${what}</span><span class="when">${escapeHtml(before(st.at))}</span></li>`
+        })
+        .join("")}</ol>`
+      body.appendChild(sec)
+    }
     if (errs.length || reqs.length) {
       const diag = document.createElement("section")
       diag.className = "iv-sec"
@@ -2345,9 +2426,25 @@
     shell.appendChild(body)
   }
 
+  // Same rule as the dashboard's likelyDuplicates(): structural selectors
+  // only match with identical element text; stable ones match on their own.
+  function sameElementIssues(p) {
+    if (!p || !p.selector) return []
+    const stable = /^[#[]/.test(p.selector)
+    return (state.issues.page || [])
+      .filter(
+        (it) =>
+          it.open &&
+          it.selector === p.selector &&
+          (stable || (!!p.text && it.elementText === p.text)),
+      )
+      .slice(0, 3)
+  }
+
   function renderCompose() {
     const p = state.picked || {}
     const isPin = !!p.pin
+    const dupes = isPin ? [] : sameElementIssues(p)
     shell.appendChild(
       headEl({
         back: () => {
@@ -2372,6 +2469,18 @@
             ? `<div class="sel">${escapeHtml(p.selector)}</div>`
             : `<div class="sel">Video report — no element picked</div>`
       }
+      ${
+        dupes.length
+          ? `<div class="dupe"><b>Already reported on this element</b>${dupes
+              .map(
+                (d) =>
+                  `<button type="button" class="linkbtn" data-dupe="${escapeHtml(d.id)}">${escapeHtml(
+                    d.key,
+                  )} · ${escapeHtml(d.title)}</button>`,
+              )
+              .join("")}<span>Open it to add to the thread instead of filing a new one.</span></div>`
+          : ""
+      }
       <label>What's the comment?</label>
       <input id="cp-title" placeholder="Short summary" />
       <label>Details</label>
@@ -2386,7 +2495,7 @@
       <div id="cp-rec"></div>
       <div class="note">${
         consoleErrors.length + failedRequests.length
-      } page signal(s) will be attached.</div>
+      } page signal(s) and ${steps.length} recent step(s) will be attached.</div>
       <div class="btnrow stick">
         <button class="btn ghost" type="button" id="cp-cancel">Cancel</button>
         <button class="btn primary" type="submit" id="cp-send">Post comment</button>
@@ -2395,6 +2504,13 @@
     renderShot()
     renderRec()
     form.querySelector("#cp-title").focus()
+    form.querySelectorAll("[data-dupe]").forEach((b) =>
+      b.addEventListener("click", () => {
+        state.picked = null
+        clearPinMark()
+        void openIssue(b.getAttribute("data-dupe"))
+      }),
+    )
     form.querySelector("#cp-cancel").addEventListener("click", () => {
       state.picked = null
       void stopRecording().then(() => {
@@ -2440,6 +2556,7 @@
             viewport: `${innerWidth}×${innerHeight}`,
             consoleErrors: consoleErrors.length ? consoleErrors.slice() : undefined,
             failedRequests: failedRequests.length ? failedRequests.slice() : undefined,
+            steps: steps.length ? steps.slice() : undefined,
           },
         })
         state.picked = null

@@ -48,6 +48,20 @@ export const zContext = z.object({
   viewport: z.string().max(100).optional(),
   consoleErrors: z.array(z.string().max(500)).max(20).optional(),
   failedRequests: z.array(z.string().max(500)).max(20).optional(),
+  // Repro steps recorded by the widget: clicks (selector + visible label)
+  // and in-app navigations. Never typed text.
+  steps: z
+    .array(
+      z.object({
+        kind: z.enum(["click", "nav"]),
+        at: z.string().max(40),
+        target: z.string().max(300).optional(),
+        text: z.string().max(120).optional(),
+        url: z.string().max(300).optional(),
+      }),
+    )
+    .max(30)
+    .optional(),
 })
 
 /** Inline base64 data URL — cap so a runaway screenshot can't wedge Postgres. */

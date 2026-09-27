@@ -40,6 +40,7 @@ import {
   columnMeta,
   PRIORITY_META,
   PRIORITY_ORDER,
+  type Ticket,
   type TicketPriority,
   TYPE_META,
 } from "@/lib/types"
@@ -61,6 +62,7 @@ export default function TicketDetailPage({
   const { id } = use(params)
   const {
     getTicket,
+    tickets,
     getProject,
     getUser,
     users,
@@ -107,6 +109,7 @@ export default function TicketDetailPage({
   const thread = commentsFor(ticket.id)
   const commentsLoaded = loadedCommentTicketIds.includes(ticket.id)
   const ctx = ticket.context
+  const duplicates = likelyDuplicates(ticket, tickets)
   const events = ticket.events ?? []
 
   function postComment() {
@@ -319,6 +322,33 @@ export default function TicketDetailPage({
               </section>
             ) : null}
 
+            {duplicates.length ? (
+              <section className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                  Possible duplicate
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Still-open tickets reported on the same element of the same
+                  page:
+                </p>
+                <ul className="flex flex-col gap-1 text-sm">
+                  {duplicates.map((d) => (
+                    <li key={d.id}>
+                      <Link
+                        href={`/tickets/${d.id}`}
+                        className="hover:underline"
+                      >
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {d.key}
+                        </span>{" "}
+                        {d.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
             {ticket.domSnapshot || ticket.sourceUrl ? (
               <section className="flex flex-col gap-3 rounded-xl bg-muted/40 p-4">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -366,7 +396,8 @@ export default function TicketDetailPage({
             {ctx &&
             (ctx.browser ||
               ctx.consoleErrors?.length ||
-              ctx.failedRequests?.length) ? (
+              ctx.failedRequests?.length ||
+              ctx.steps?.length) ? (
               <section className="flex flex-col gap-3 rounded-xl bg-muted/40 p-4">
                 <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <MonitorIcon className="size-3.5" />
@@ -405,6 +436,34 @@ export default function TicketDetailPage({
                         {line}
                       </code>
                     ))}
+                  </div>
+                ) : null}
+                {ctx.steps?.length ? (
+                  <div className="flex flex-col gap-1.5">
+                    <h3 className="text-xs font-medium text-muted-foreground">
+                      Steps before report
+                    </h3>
+                    <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm">
+                      {ctx.steps.map((st, i) => (
+                        <li key={`${st.at}-${i}`} className="pl-1">
+                          {st.kind === "nav" ? (
+                            <>
+                              Went to{" "}
+                              <code className="font-mono text-xs">
+                                {st.url}
+                              </code>
+                            </>
+                          ) : (
+                            <>
+                              Clicked {st.text ? `“${st.text}” ` : ""}
+                              <code className="font-mono text-xs text-muted-foreground">
+                                {st.target}
+                              </code>
+                            </>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
                   </div>
                 ) : null}
               </section>
@@ -859,4 +918,38 @@ function SideField({
       {children}
     </div>
   )
+}
+
+function pagePath(url?: string) {
+  try {
+    return url ? new URL(url).pathname : ""
+  } catch {
+    return ""
+  }
+}
+
+/**
+ * Open tickets in the same project, same page, same element. A structural
+ * selector ("div:nth-of-type(1)") matches countless unrelated elements, so it
+ * only counts when the captured element text also matches; stable selectors
+ * (#id, [data-testid], [aria-label]) count on their own.
+ */
+function likelyDuplicates(ticket: Ticket, all: Ticket[]) {
+  const sel = ticket.domSnapshot?.selector
+  if (!sel || !ticket.sourceUrl) return []
+  const stable = /^[#[]/.test(sel)
+  const path = pagePath(ticket.sourceUrl)
+  return all
+    .filter(
+      (t) =>
+        t.id !== ticket.id &&
+        t.projectId === ticket.projectId &&
+        !t.resolvedAt &&
+        t.domSnapshot?.selector === sel &&
+        pagePath(t.sourceUrl) === path &&
+        (stable ||
+          (!!ticket.domSnapshot?.text &&
+            t.domSnapshot?.text === ticket.domSnapshot.text)),
+    )
+    .slice(0, 5)
 }

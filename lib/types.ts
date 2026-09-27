@@ -149,6 +149,15 @@ export type TicketContext = {
   viewport?: string
   consoleErrors?: string[]
   failedRequests?: string[]
+  steps?: ReproStep[]
+}
+
+export type ReproStep = {
+  kind: "click" | "nav"
+  at: string
+  target?: string
+  text?: string
+  url?: string
 }
 
 export type Ticket = {
