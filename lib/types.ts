@@ -374,3 +374,21 @@ export type NotificationFeed = {
 export function unreadCount(feed: NotificationFeed) {
   return feed.items.filter((n) => !feed.seenAt || n.at > feed.seenAt).length
 }
+
+export const INBOX_FILTERS = [
+  "all",
+  "open",
+  "mine",
+  "urgent",
+  "overdue",
+] as const
+export type InboxFilter = (typeof INBOX_FILTERS)[number]
+
+export interface SavedView {
+  id: string
+  ownerId: string
+  name: string
+  filter: InboxFilter
+  query: string
+  shared: boolean
+}

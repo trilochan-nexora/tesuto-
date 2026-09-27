@@ -35,6 +35,7 @@ model User {
   docs            Doc[]
 
   widgetLinks     WidgetLink[]
+  savedViews      SavedView[]
 
   @@map("users")
 }
@@ -227,4 +228,20 @@ model Doc {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("docs")
+}
+
+/// A named inbox filter + search. Private to its owner unless `shared`.
+model SavedView {
+  id        String   @id @default(cuid())
+  ownerId   String   @map("owner_id")
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String
+  filter    String
+  query     String   @default("")
+  shared    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([ownerId])
+  @@index([shared])
+  @@map("saved_views")
 }
