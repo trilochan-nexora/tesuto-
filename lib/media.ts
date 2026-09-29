@@ -89,7 +89,11 @@ export function mediaRoot() {
   if (process.env.NODE_ENV === "production" && !configured) {
     throw new Error("Missing env var MEDIA_STORAGE_DIR")
   }
-  return resolve(configured || join(process.cwd(), ".data", "media"))
+  // Runtime-only storage dir; keep Turbopack from tracing the whole project.
+  return resolve(
+    /* turbopackIgnore: true */ configured ||
+      join(/* turbopackIgnore: true */ process.cwd(), ".data", "media"),
+  )
 }
 
 export async function ensureMediaStorage() {
@@ -128,7 +132,7 @@ export async function prepareMedia(
   const root = await ensureMediaStorage()
   const id = randomBytes(24).toString("base64url")
   const storageKey = `${id}.${config.extension}`
-  const target = join(root, storageKey)
+  const target = join(/* turbopackIgnore: true */ root, storageKey)
   const temporary = `${target}.${randomBytes(6).toString("hex")}.tmp`
   try {
     await writeFile(temporary, bytes, { flag: "wx", mode: 0o600 })
