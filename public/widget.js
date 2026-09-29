@@ -982,27 +982,26 @@
   // env flag needed, the gesture itself is the restriction.
   const CLICKS_NEEDED = 5
   const CLICK_WINDOW_MS = 4000
+  const HOTSPOT_PX = 90
   let unlockClicks = []
-  const hotspot = document.createElement("div")
-  hotspot.style.cssText =
-    "position:fixed;bottom:0;right:0;width:90px;height:90px;background:transparent"
-  // Once unlocked (gesture fired, or already unlocked on localhost) the
-  // hotspot has nothing left to do — stop absorbing clicks so it doesn't
-  // block the host page underneath it.
-  hotspot.style.pointerEvents = state.unlocked ? "none" : "auto"
-  hotspot.addEventListener("click", () => {
+  // The hotspot is a region, not an element: a passive capture-phase listener
+  // counts clicks in the corner and never stops them, so host UI that lives
+  // there (e.g. a floor-plan settings button) stays clickable while locked.
+  function onHotspotClick(e) {
     if (state.unlocked) return
+    if (e.clientX < window.innerWidth - HOTSPOT_PX || e.clientY < window.innerHeight - HOTSPOT_PX)
+      return
     const now = Date.now()
     unlockClicks = unlockClicks.filter((t) => now - t < CLICK_WINDOW_MS)
     unlockClicks.push(now)
     if (unlockClicks.length >= CLICKS_NEEDED) {
       unlockClicks = []
       state.unlocked = true
-      hotspot.style.pointerEvents = "none"
+      document.removeEventListener("click", onHotspotClick, true)
       go("actions")
     }
-  })
-  wrap.insertBefore(hotspot, fab)
+  }
+  if (!state.unlocked) document.addEventListener("click", onHotspotClick, true)
 
   const panel = document.createElement("div")
   panel.className = "panel"
