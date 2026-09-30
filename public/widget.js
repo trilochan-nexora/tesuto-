@@ -839,6 +839,10 @@
 
   const fab = document.createElement("button")
   fab.className = "fab"
+  // Hidden until the first render() — the boot requests (project, auth,
+  // bootstrap) are slow on a cold dev server, and an unpositioned, icon-less
+  // .fab would otherwise flash as an empty dark box in the meantime.
+  fab.style.display = "none"
   fab.addEventListener("click", () => {
     // A drag ends with a click on the same element — swallow that one.
     if (fabDragged) {
@@ -3084,7 +3088,13 @@
         btn.textContent = "Post comment"
         console.error("[tesuto]", err)
         const note = form.querySelector(".note")
-        note.textContent = "Couldn't post — please try again."
+        // 4xx means the server told us what's wrong (rate limit, payload too
+        // large, validation) — surface it; network/5xx stay generic.
+        const why =
+          err && err.status >= 400 && err.status < 500 && err.message
+            ? `: ${err.message}`
+            : ""
+        note.textContent = `Couldn't post — please try again${why}.`
         note.classList.add("err")
       }
     })
