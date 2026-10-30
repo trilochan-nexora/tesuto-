@@ -281,7 +281,7 @@ assert(
 r = await post("/import/clickup/teams", { token: "pk_1234567890" })
 assert(
   "import → bad ClickUp token rejected",
-  r.status === 502 && /rejected/i.test(r.error?.message ?? ""),
+  r.status === 424 && /rejected/i.test(r.error?.message ?? ""),
 )
 r = await call("/import/github/projects")
 assert(
