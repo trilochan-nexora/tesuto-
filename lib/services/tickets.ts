@@ -86,14 +86,24 @@ export async function listTickets(filters: TicketFilters = {}) {
   return tickets.map(safeTicket)
 }
 
-export function safeTicket<T extends { description: string | null }>(
-  ticket: T,
-) {
+export function safeTicket<
+  T extends {
+    description: string | null
+    attachments: Prisma.JsonValue
+    annotations: Prisma.JsonValue
+    events: Prisma.JsonValue
+  },
+>(ticket: T) {
   return {
     ...ticket,
     description: ticket.description
       ? sanitizeRichText(ticket.description)
       : ticket.description,
+    // The JSON columns are nullable in Postgres, but the API contract (and
+    // native clients generated from it) treats them as non-optional arrays.
+    attachments: ticket.attachments ?? [],
+    annotations: ticket.annotations ?? [],
+    events: ticket.events ?? [],
   }
 }
 
@@ -127,6 +137,8 @@ export type NewTicketInput = {
   annotations?: unknown
   domSnapshot?: unknown
   context?: unknown
+  /** Unique per reporter; a duplicate surfaces as Prisma P2002. */
+  idempotencyKey?: string
 }
 
 export async function createTicket(input: NewTicketInput, actorId: string) {
@@ -212,6 +224,7 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
     resolvedAt: terminal ? iso : null,
     order: -Date.now(),
     events: events as unknown as Prisma.InputJsonValue,
+    idempotencyKey: input.idempotencyKey ?? null,
   }
 
   let committed = false
@@ -255,7 +268,7 @@ export async function createTicket(input: NewTicketInput, actorId: string) {
           },
           actorId,
         )
-        return ticket
+        return safeTicket(ticket)
       } catch (err) {
         if (attempt === 0 && (err as { code?: string }).code === "P2002") {
           continue
@@ -374,7 +387,7 @@ export async function patchTicket(
     resolvedInto,
   })
 
-  return updated
+  return safeTicket(updated)
 }
 
 async function sendPatchNotifications(input: {
@@ -529,11 +542,12 @@ export async function syncTicketToGithub(id: string, actorId: string) {
 
   const events = [...((ticket.events as unknown as TicketEvent[]) ?? [])]
   events.push({ at: new Date().toISOString(), kind: "synced", actorId })
-  return prisma.ticket.update({
+  const updated = await prisma.ticket.update({
     where: { id },
     data: {
       githubIssueUrl: htmlUrl,
       events: events as unknown as Prisma.InputJsonValue,
     },
   })
+  return safeTicket(updated)
 }

@@ -1,5 +1,5 @@
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto"
-import { HttpError } from "@/lib/api"
+import { HttpError, tooManyRequests } from "@/lib/api"
 import { createSession } from "@/lib/auth"
 import { decryptToken, encryptToken } from "@/lib/crypto"
 import { prisma } from "@/lib/db"
@@ -29,8 +29,8 @@ export async function connectedGithubToken(userId: string): Promise<string> {
 }
 
 /**
- * Drops server-only fields (`githubToken`) before a user row reaches the API
- * envelope. Apply everywhere a Prisma user is serialized to the client.
+ * Drops server-only fields (`githubToken`) before a user row reaches the API.
+ * Apply everywhere a Prisma user is serialized to the client.
  */
 export function publicUser<T extends { githubToken?: string | null }>(
   user: T,
@@ -93,7 +93,10 @@ export async function requestSignInCode(input: { email: string }) {
     existing &&
     Date.now() - existing.lastSentAt.getTime() < LOGIN_RESEND_WAIT_MS
   ) {
-    throw new HttpError("A code was just sent — wait a minute to resend", 429)
+    throw tooManyRequests(
+      "A code was just sent — wait a minute to resend",
+      existing.lastSentAt.getTime() + LOGIN_RESEND_WAIT_MS - Date.now(),
+    )
   }
 
   if (devCode && !/^\d{6}$/.test(devCode)) {
@@ -286,6 +289,7 @@ export async function deleteUser(id: string) {
     )
   }
   await prisma.user.delete({ where: { id } })
+  return { deleted: id }
 }
 
 /** OAuth callback: stores the (encrypted) token and marks the account linked. */

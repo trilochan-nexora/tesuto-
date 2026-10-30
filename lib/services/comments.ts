@@ -12,13 +12,18 @@ export type NewCommentInput = {
   attachments?: Array<{ name: string; data: string }>
 }
 
+/** Nullable `attachments` column → the API's non-optional array. */
+function safeComment(comment: Comment) {
+  return { ...comment, attachments: comment.attachments ?? [] }
+}
+
 export async function listComments(ticketId: string) {
   const rows = await prisma.comment.findMany({
     where: { ticketId },
     orderBy: { createdAt: "desc" },
     take: 200,
   })
-  return rows.reverse()
+  return rows.reverse().map(safeComment)
 }
 
 export async function addComment(
@@ -100,5 +105,5 @@ export async function addComment(
     notificationText,
     authorId,
   )
-  return comment
+  return safeComment(comment)
 }

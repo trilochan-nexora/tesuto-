@@ -130,6 +130,21 @@ function api(method, path, body) {
   return { status: 404, data: null, error: { message: "not found" } }
 }
 
+/** Serialize a mock result the way the server does: success bodies are bare,
+ *  failures are RFC 9457 problem+json. */
+function wire(r) {
+  if (!r.error) return r.data
+  return {
+    type: "urn:tesuto:problem:not-found",
+    title: "Not found",
+    status: r.status,
+    detail: r.error.message,
+    instance: "/api",
+    code: "NOT_FOUND",
+    requestId: "widget-smoke",
+  }
+}
+
 const dom = new JSDOM(
   `<!doctype html><html><body><h1 data-testid="hero">Hi</h1><button id="cta">Go</button></body></html>`,
   {
@@ -157,7 +172,7 @@ window.fetch = async (url, init = {}) => {
   return {
     ok: !r.status || r.status < 400,
     status: r.status || 200,
-    json: async () => r,
+    json: async () => wire(r),
   }
 }
 window.matchMedia = () => ({
@@ -497,7 +512,7 @@ ok("sign-in returns to actions", !!$(".actioncard"))
     return {
       ok: !r.status || r.status < 400,
       status: r.status || 200,
-      json: async () => r,
+      json: async () => wire(r),
     }
   }
   w2.matchMedia = () => ({
@@ -547,7 +562,7 @@ ok("sign-in returns to actions", !!$(".actioncard"))
     const okRes = (data) => ({
       ok: true,
       status: 200,
-      json: async () => ({ data, error: null }),
+      json: async () => data,
     })
     if (p === "/widget/project")
       return okRes({ id: "p1", key: "SAND", name: "Asterconsult" })
@@ -572,7 +587,8 @@ ok("sign-in returns to actions", !!$(".actioncard"))
     return {
       ok: false,
       status: 404,
-      json: async () => ({ data: null, error: { message: "not found" } }),
+      json: async () =>
+        wire({ status: 404, data: null, error: { message: "not found" } }),
     }
   }
   w3.matchMedia = () => ({

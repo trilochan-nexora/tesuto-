@@ -24,12 +24,20 @@ async function call(path, init = {}) {
       ...init.headers,
     },
   })
-  const json = await res.json().catch(() => ({}))
-  return {
-    status: res.status,
-    setCookie: res.headers.get("set-cookie"),
-    ...json,
-  }
+  return { ...(await read(res)), setCookie: res.headers.get("set-cookie") }
+}
+
+/** Success bodies are bare; failures are RFC 9457 problem+json. Normalize to
+ *  `{ status, data, error }` so assertions read the same either way. */
+async function read(res) {
+  const body = await res.json().catch(() => null)
+  return res.ok
+    ? { status: res.status, data: body, error: null }
+    : {
+        status: res.status,
+        data: null,
+        error: { ...body, message: body?.detail ?? `HTTP ${res.status}` },
+      }
 }
 const post = (p, body) =>
   call(p, { method: "POST", body: JSON.stringify(body) })
@@ -110,7 +118,7 @@ r = await fetch(`${BASE}/projects`, {
     origin: "https://attacker.invalid",
   },
   body: JSON.stringify({ name: "csrf should fail", description: "" }),
-}).then(async (res) => ({ status: res.status, ...(await res.json()) }))
+}).then(read)
 assert("cookie mutation → rejects foreign Origin", r.status === 403)
 
 r = await post("/tickets", {
@@ -211,7 +219,10 @@ if (ghConfigured) {
 }
 
 // Unique per run so a crashed earlier run can't wedge this one on a name clash.
-r = await post("/projects", { name: `Smoke Proj ${Date.now()}`, description: "x" })
+r = await post("/projects", {
+  name: `Smoke Proj ${Date.now()}`,
+  description: "x",
+})
 const np = r.data
 assert("addProject → key + token", np?.key && np.token?.startsWith("tsto_pk_"))
 
@@ -230,7 +241,8 @@ const projectCols = r.data ?? []
 const terminalIdx = projectCols.findIndex((c) => c.terminal)
 assert(
   "addColumn → inserted before terminal",
-  nc && terminalIdx >= 0 &&
+  nc &&
+    terminalIdx >= 0 &&
     projectCols.findIndex((c) => c.id === nc.id) < terminalIdx,
 )
 r = await del(
@@ -298,15 +310,15 @@ assert(
 )
 r = await fetch(`${BASE}/widget/project`, {
   headers: { "x-tesuto-project": project.token },
-}).then((x) => x.json())
+}).then(read)
 assert("widget project (public) → name", r.data?.name === project.name)
 r = await fetch(
   `${BASE}/widget/project?token=${encodeURIComponent(project.token)}`,
-).then((x) => x.json())
+).then(read)
 assert("widget project → rejects query-string credentials", Boolean(r.error))
 r = await fetch(`${BASE}/widget/project`, {
   headers: { "x-tesuto-project": "nope" },
-}).then((x) => x.json())
+}).then(read)
 assert(
   "widget project → bad token 401",
   r.error && /token/i.test(r.error.message),
@@ -331,13 +343,13 @@ if (widgetSecret) {
   }
   r = await fetch(`${BASE}/widget/bootstrap`, {
     headers: { ...projectHeaders, cookie },
-  }).then(async (res) => ({ status: res.status, ...(await res.json()) }))
+  }).then(read)
   assert("dashboard cookie → cannot authenticate widget API", r.status === 401)
   r = await fetch(`${BASE}/widget/auth`, {
     method: "POST",
     headers: projectHeaders,
     body: JSON.stringify({ assertion }),
-  }).then((x) => x.json())
+  }).then(read)
   if (r.data?.linked === false) {
     await fetch(`${BASE}/widget/link`, {
       method: "POST",
@@ -348,21 +360,19 @@ if (widgetSecret) {
       method: "POST",
       headers: projectHeaders,
       body: JSON.stringify({ assertion, email: SMOKE_EMAIL, code: DEV_CODE }),
-    }).then((x) => x.json())
+    }).then(read)
   }
   assert("widget signed auth → scoped token", Boolean(r.data?.token))
   const widgetToken = r.data?.token
   r = await fetch(`${BASE}/bootstrap`, {
     headers: { authorization: `Bearer ${widgetToken}` },
-  }).then(async (res) => ({ status: res.status, ...(await res.json()) }))
+  }).then(read)
   assert("widget token → cannot authenticate dashboard API", r.status === 401)
   const wh = {
     ...projectHeaders,
     authorization: `Bearer ${widgetToken}`,
   }
-  r = await fetch(`${BASE}/widget/bootstrap`, { headers: wh }).then((x) =>
-    x.json(),
-  )
+  r = await fetch(`${BASE}/widget/bootstrap`, { headers: wh }).then(read)
   assert(
     "widget bootstrap → project + user + columns",
     r.data?.project?.id && r.data?.user?.id && r.data?.columns?.length,
@@ -378,12 +388,12 @@ if (widgetSecret) {
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
       domSnapshot: { selector: "", tag: "", x: 0.5, y: 0.5 },
     }),
-  }).then((x) => x.json())
+  }).then(read)
   assert("widget POST → ticket on the board", /-\d+$/.test(r.data?.key))
   wIssueId = r.data?.id
   r = await fetch(`${BASE}/widget/issues/${wIssueId}`, {
     headers: wh,
-  }).then((x) => x.json())
+  }).then(read)
   const signedScreenshot = r.data?.screenshotUrl
   assert(
     "widget detail → short-lived signed media URL",
@@ -403,7 +413,7 @@ if (widgetSecret) {
     method: "PATCH",
     headers: wh,
     body: JSON.stringify({ priority: "high", status: "in_progress" }),
-  }).then((x) => x.json())
+  }).then(read)
   assert(
     "widget PATCH → priority + status",
     r.data?.priority === "high" && r.data?.status === "in_progress",
@@ -412,11 +422,11 @@ if (widgetSecret) {
     method: "POST",
     headers: wh,
     body: JSON.stringify({ body: "widget reply" }),
-  }).then((x) => x.json())
+  }).then(read)
   assert("widget comment → author is the user", r.data?.author?.id)
   r = await fetch(`${BASE}/widget/issues?scope=page&url=http://host/x`, {
     headers: wh,
-  }).then((x) => x.json())
+  }).then(read)
   assert(
     "widget list scope=page",
     r.data?.length === 1 && r.data[0].comments === 1,

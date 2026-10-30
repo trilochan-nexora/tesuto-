@@ -36,9 +36,30 @@ bun run lint       # biome lint
 bun run format     # biome format --write
 bun run check      # biome check --write  (lint + format + import sort)
 bun run typecheck  # tsc --noEmit
+bun run api:check  # every route handler has an OpenAPI operation
+bun run email:check # send a test through the auth-email path
 ```
 
 Linting and formatting are handled by [Biome](https://biomejs.dev) (`biome.json`).
+
+## API docs
+
+- **Swagger UI**: [`/swagger`](http://localhost:3005/swagger) — authorize, then
+  Try it out against this origin.
+- **OpenAPI 3.1 JSON**: `GET /swagger/json`; import it into Postman or any
+  client generator.
+- **Source of truth**: [`lib/openapi.ts`](./lib/openapi.ts). `bun run api:check`
+  fails if a `route.ts` export is missing from it.
+- **Guides**: [`docs/api/README.md`](./docs/api/README.md) (auth, response
+  bodies, errors, CORS, rate limits) and
+  [`docs/api/mobile-reporting.md`](./docs/api/mobile-reporting.md) (the mobile
+  report flow).
+- **Audit / known gaps**: [`docs/ENGINEERING-MEMO.md`](./docs/ENGINEERING-MEMO.md).
+
+The mobile bug-report endpoint is `POST /api/widget/issues`. It needs **both**
+`X-Tesuto-Project: tsto_pk_…` and a widget-scope
+`Authorization: Bearer <widget session>`; a project token alone returns `401`.
+The session comes from `POST /api/widget/auth` with a host-signed assertion.
 
 ## Webhook set-up — sending to Slack / email / GitHub
 
@@ -46,15 +67,28 @@ Copy `.env.example` → `.env` and configure:
 
 | Var | Effect |
 |---|---|
-| `SLACK_WEBHOOK_URL` | Global incoming webhook; every event (ticket created / assigned / moved to done / commented) posts here. Unset = Slack notifications off. |
-| `RESEND_API_KEY` + `EMAIL_FROM` | Emails ticket events to the assignee (never the actor, never inactive users). Unset = email off. |
+| `SLACK_WEBHOOK_URL` | Global incoming webhook. **Assignment events only** — not every ticket event. Unset = Slack notifications off. |
+| `RESEND_API_KEY` + `EMAIL_FROM` | Emails the assignee only, and only when they are active and are not the actor. Unassigned creates/comments send no email. Unset = email off. |
 | `APP_URL` | Public origin, used for links inside Slack/email messages and OAuth redirects. Defaults to `http://localhost:3005`. |
+| `APP_SECRET` | Long random string, **32+ chars and not a `change-me` placeholder**. In production a placeholder disables email sign-in, GitHub OAuth, media URLs, and widget links. Encrypts GitHub tokens at rest. |
+| `TESUTO_WIDGET_SECRET` | Shared secret with the host app. Required for widget/mobile assertions. Never ship it to a browser or mobile client. |
 | `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` | GitHub OAuth app credentials. Set the callback URL to `APP_URL/api/github/callback`. |
 | `GITHUB_REDIRECT_URI` | Optional override for the OAuth callback (defaults to `<origin>/api/github/callback`). |
-| `APP_SECRET` | Long random string — encrypts GitHub access tokens at rest and signs OAuth state. Required for GitHub connect/sync. |
 | `MEDIA_STORAGE_DIR` | Private persistent volume for screenshots and recordings. Required in production. |
 | `MAINTENANCE_SECRET` | Optional bearer secret for scheduler calls to `POST /api/maintenance/cleanup`. |
 | `DATABASE_URL` | Postgres connection string (matches `docker-compose.yml`). |
+
+Email troubleshooting, in order:
+
+1. `bun run email:check` — sends through `sendAuthEmail()`, the path sign-in
+   uses, and prints which env check failed.
+2. If `APP_SECRET` is rejected in production, replace it with
+   `openssl rand -base64 48` and restart. Rotating it invalidates GitHub tokens
+   encrypted with the old value, so reconnect GitHub accounts if needed.
+3. Verify the `EMAIL_FROM` domain is verified in Resend. A restricted sending
+   key can still send, but only from a verified domain.
+4. Remember that notification email is **assignee-only**. A ticket with no
+   assignee, or a comment by someone other than the assignee, sends nothing.
 
 For container probes, use `GET /api/health/live` for process liveness and
 `GET /api/health/ready` for database plus media-volume readiness. Run cleanup
@@ -92,7 +126,7 @@ back to GitHub or ClickUp.
 | Area | Notes |
 |---|---|
 | Landing (`/`) | marketing page |
-| Widget demo (`/widget`) | picker → project-token auth → `html-to-image` screenshot → drag-and-drop box/pin annotations → files a real ticket through `/api/widget/*` |
+| Widget demo (`/widget`) | picker → host assertion + project token → `html-to-image` screenshot → drag-and-drop box/pin annotations → files a real ticket through `/api/widget/*` |
 | Inbox (`/inbox`) | filters, search, stats |
 | Boards (`/boards`) | create kanban views spanning one or more projects; `/board` is the everything view |
 | Projects (`/projects`) | create projects; each gets a publishable widget token + embed snippet + GitHub repo at `/projects/[id]/settings` |

@@ -910,8 +910,7 @@ export function StoreEffects() {
         return
       }
       const fresh = feed.items.some(
-        (n) =>
-          !knownIds?.has(n.id) && (!feed.seenAt || n.at > feed.seenAt),
+        (n) => !knownIds?.has(n.id) && (!feed.seenAt || n.at > feed.seenAt),
       )
       knownIds = ids
       if (fresh) playChime()

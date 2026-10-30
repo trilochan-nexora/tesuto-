@@ -29,7 +29,8 @@ export type GithubItem = {
 export type GithubColumn = { label: string; terminal: boolean }
 
 /** Status option names commonly used as a board's terminal column. */
-const TERMINAL_STATUS_NAMES = /^(done|closed|complete|completed|merged|resolved)$/i
+const TERMINAL_STATUS_NAMES =
+  /^(done|closed|complete|completed|merged|resolved)$/i
 
 type GqlResult<T> = {
   data?: T

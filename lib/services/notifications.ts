@@ -1,11 +1,18 @@
 import { prisma } from "@/lib/db"
-import type { AppNotification, NotificationFeed, TicketEvent } from "@/lib/types"
+import type {
+  AppNotification,
+  NotificationFeed,
+  TicketEvent,
+} from "@/lib/types"
 
 const WINDOW_MS = 14 * 24 * 60 * 60 * 1000
 const LIMIT = 30
 
 function excerpt(body: string) {
-  const text = body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+  const text = body
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
   return text.length > 120 ? `${text.slice(0, 117)}…` : text
 }
 
@@ -15,7 +22,9 @@ function excerpt(body: string) {
  * to them, and status changes others made on those tickets — last 14 days.
  * Ships inside bootstrap, so the version poll keeps it live for free.
  */
-export async function loadNotifications(meId: string): Promise<NotificationFeed> {
+export async function loadNotifications(
+  meId: string,
+): Promise<NotificationFeed> {
   const since = new Date(Date.now() - WINDOW_MS)
   const [me, mine] = await Promise.all([
     prisma.user.findUnique({
@@ -42,7 +51,13 @@ export async function loadNotifications(meId: string): Promise<NotificationFeed>
         },
         orderBy: { createdAt: "desc" },
         take: LIMIT,
-        select: { id: true, ticketId: true, authorId: true, body: true, createdAt: true },
+        select: {
+          id: true,
+          ticketId: true,
+          authorId: true,
+          body: true,
+          createdAt: true,
+        },
       })
     : []
 
@@ -75,7 +90,12 @@ export async function loadNotifications(meId: string): Promise<NotificationFeed>
       if (e.kind === "assigned" && e.to === meId) {
         items.push({ ...base, id: `e:${t.id}:${i}`, kind: "assigned" })
       } else if (e.kind === "status" && e.actorId) {
-        items.push({ ...base, id: `e:${t.id}:${i}`, kind: "status", detail: e.to })
+        items.push({
+          ...base,
+          id: `e:${t.id}:${i}`,
+          kind: "status",
+          detail: e.to,
+        })
       }
     })
   }

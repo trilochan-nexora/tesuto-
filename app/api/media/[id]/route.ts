@@ -1,3 +1,4 @@
+import { problem } from "@/lib/api"
 import { getSessionUser } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { logError } from "@/lib/logger"
@@ -13,14 +14,23 @@ export async function GET(
   const url = new URL(req.url)
   const user = await getSessionUser(req)
   if (!user && !verifyMediaGrant(id, url)) {
-    return Response.json(
-      { error: { message: "Unauthorized" } },
-      { status: 401 },
-    )
+    return problem({
+      status: 401,
+      code: "UNAUTHORIZED",
+      detail: "Unauthorized",
+      req,
+    })
   }
 
   const media = await prisma.mediaObject.findUnique({ where: { id } })
-  if (!media) return new Response("Not found", { status: 404 })
+  if (!media) {
+    return problem({
+      status: 404,
+      code: "NOT_FOUND",
+      detail: "Media not found",
+      req,
+    })
+  }
   try {
     const bytes = await readStoredMedia(media.storageKey)
     const range = req.headers.get("range")
@@ -50,12 +60,23 @@ export async function GET(
     }
     if (range) {
       const match = /^bytes=(\d+)-(\d*)$/.exec(range)
-      if (!match) return new Response(null, { status: 416 })
+      if (!match) {
+        return problem({
+          status: 416,
+          code: "RANGE_NOT_SATISFIABLE",
+          detail: "Invalid range",
+          req,
+          headers: { "Content-Range": `bytes */${bytes.length}` },
+        })
+      }
       const start = Number(match[1])
       const end = match[2] ? Number(match[2]) : bytes.length - 1
       if (start > end || end >= bytes.length) {
-        return new Response(null, {
+        return problem({
           status: 416,
+          code: "RANGE_NOT_SATISFIABLE",
+          detail: "Invalid range",
+          req,
           headers: { "Content-Range": `bytes */${bytes.length}` },
         })
       }
@@ -74,6 +95,11 @@ export async function GET(
     })
   } catch (error) {
     logError("media.read_failed", error, { mediaId: id })
-    return new Response("Media unavailable", { status: 503 })
+    return problem({
+      status: 503,
+      code: "MEDIA_UNAVAILABLE",
+      detail: "Media unavailable",
+      req,
+    })
   }
 }

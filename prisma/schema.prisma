@@ -133,6 +133,9 @@ model Ticket {
   assignedAt     DateTime? @map("assigned_at")
   resolvedAt     DateTime? @map("resolved_at")
   events         Json?
+  /// Client-chosen `Idempotency-Key` for widget creates, scoped per reporter,
+  /// so a retried POST returns the original ticket instead of a duplicate.
+  idempotencyKey String?   @map("idempotency_key")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
@@ -140,6 +143,7 @@ model Ticket {
   media    MediaObject[]
 
   @@unique([projectId, key])
+  @@unique([reporterId, idempotencyKey])
   @@index([projectId, status])
   @@index([parentId])
   @@map("tickets")

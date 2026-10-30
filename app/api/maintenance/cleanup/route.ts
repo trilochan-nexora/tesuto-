@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto"
+import { problem } from "@/lib/api"
 import { deploymentSecret } from "@/lib/env"
 import { logError } from "@/lib/logger"
 import { runMaintenance } from "@/lib/maintenance"
@@ -16,18 +17,22 @@ function authorized(req: Request) {
 
 export async function POST(req: Request) {
   if (!authorized(req)) {
-    return Response.json(
-      { data: null, error: { message: "Unauthorized" } },
-      { status: 401 },
-    )
+    return problem({
+      status: 401,
+      code: "UNAUTHORIZED",
+      detail: "Unauthorized",
+      req,
+    })
   }
   try {
-    return Response.json({ data: await runMaintenance(), error: null })
+    return Response.json(await runMaintenance())
   } catch (error) {
     logError("maintenance.failed", error)
-    return Response.json(
-      { data: null, error: { message: "Maintenance failed" } },
-      { status: 500 },
-    )
+    return problem({
+      status: 500,
+      code: "MAINTENANCE_FAILED",
+      detail: "Maintenance failed",
+      req,
+    })
   }
 }

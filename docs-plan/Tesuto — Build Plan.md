@@ -196,7 +196,8 @@ sketched in §4, but a simpler opaque-bearer-token auth (deliberate for v1).
   `localStorage["tesuto:token"]`. `<SignInGate>` in `app/(app)/layout.tsx`;
   sign-out in the sidebar footer.
 - **API**: `app/api/**/route.ts` through `handler()` in `lib/api.ts` (Zod +
-  `{data,error}` envelope). Logic in `lib/services/*`. `GET /api/bootstrap`
+  direct success bodies, RFC 9457 problem+json errors). Logic in
+  `lib/services/*`. `GET /api/bootstrap`
   returns the whole store. Covers tickets/comments/projects/columns/users/
   me/docs + bulk + fake github sync.
 - **Client**: `lib/store.tsx` keeps the `useStore()` surface; engine is now

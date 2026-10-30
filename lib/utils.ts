@@ -57,7 +57,8 @@ export function describeUserAgent(value: string | undefined | null): string {
     (pick(/OPR\/(\d+)/) && `Opera ${pick(/OPR\/(\d+)/)}`) ||
     (pick(/Firefox\/(\d+)/) && `Firefox ${pick(/Firefox\/(\d+)/)}`) ||
     (pick(/Chrome\/(\d+)/) && `Chrome ${pick(/Chrome\/(\d+)/)}`) ||
-    (pick(/Version\/(\d+).*Safari/) && `Safari ${pick(/Version\/(\d+).*Safari/)}`) ||
+    (pick(/Version\/(\d+).*Safari/) &&
+      `Safari ${pick(/Version\/(\d+).*Safari/)}`) ||
     "Browser"
   const os = /iPhone|iPad/.test(ua)
     ? "iOS"

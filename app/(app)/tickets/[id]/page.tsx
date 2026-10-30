@@ -419,7 +419,8 @@ export default function TicketDetailPage({
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Where it happened
                 </h2>
-                {ticket.sourceUrl ? (
+                {ticket.sourceUrl &&
+                /^https?:\/\//i.test(ticket.sourceUrl) ? (
                   <a
                     href={ticket.sourceUrl}
                     target="_blank"
@@ -429,6 +430,15 @@ export default function TicketDetailPage({
                     {ticket.sourceUrl}
                     <ArrowSquareOutIcon className="size-3.5" />
                   </a>
+                ) : ticket.sourceUrl ? (
+                  // App deep links (myapp://…) from mobile reports can't open
+                  // on desktop, so show the screen instead of a dead link.
+                  <p className="flex items-center gap-2 text-sm">
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      App screen
+                    </span>
+                    <span className="font-mono text-xs">{ticket.sourceUrl}</span>
+                  </p>
                 ) : null}
                 {ticket.domSnapshot ? (
                   <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 font-mono text-xs">

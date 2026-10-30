@@ -1,11 +1,13 @@
 import { z } from "zod"
 import { widgetRoute } from "@/lib/api"
-import { zPriority } from "@/lib/schemas"
+import { zId, zPriority } from "@/lib/schemas"
 import { widgetIssue, widgetPatchIssue } from "@/lib/services/widget"
 
 const PatchSchema = z.object({
   priority: zPriority.optional(),
   status: z.string().optional(),
+  // A member id from /api/widget/bootstrap `members`, or null to unassign.
+  assigneeId: zId.nullable().optional(),
 })
 
 export function OPTIONS() {

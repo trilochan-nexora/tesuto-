@@ -3,12 +3,50 @@ export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn
 }
 
+type ProblemIssue = {
+  path: string
+  message: string
+  code?: string
+}
+
+type ProblemDetails = {
+  title?: string
+  detail?: string
+  code?: string
+  requestId?: string
+  errors?: ProblemIssue[]
+}
+
 export class ApiError extends Error {
   status: number
-  constructor(message: string, status: number) {
+  code?: string
+  requestId?: string
+  issues?: ProblemIssue[]
+
+  constructor(
+    message: string,
+    status: number,
+    options: {
+      code?: string
+      requestId?: string
+      issues?: ProblemIssue[]
+    } = {},
+  ) {
     super(message)
+    this.name = "ApiError"
     this.status = status
+    this.code = options.code
+    this.requestId = options.requestId
+    this.issues = options.issues
   }
+}
+
+function isProblem(value: unknown): value is ProblemDetails {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    ("detail" in value || "title" in value || "code" in value)
+  )
 }
 
 async function apiFetch<T = unknown>(
@@ -42,21 +80,39 @@ async function apiFetch<T = unknown>(
     window.clearTimeout(timeout)
     init.signal?.removeEventListener("abort", abort)
   }
+
+  const text = await res.text()
+  let payload: unknown = null
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      payload = text
+    }
+  }
+
   if (res.status === 401) {
     onUnauthorized?.()
-    throw new ApiError("Unauthorized", 401)
   }
-  let json: { data?: T; error?: { message?: string } | null } = {}
-  try {
-    json = await res.json()
-  } catch {}
-  if (!res.ok || json.error) {
+
+  if (!res.ok) {
+    const failure = isProblem(payload) ? payload : null
+    const fallback =
+      typeof payload === "string" && payload.length > 0
+        ? payload
+        : `Request failed (${res.status})`
     throw new ApiError(
-      json.error?.message ?? `Request failed (${res.status})`,
+      failure?.detail ?? failure?.title ?? fallback,
       res.status,
+      {
+        code: failure?.code,
+        requestId: failure?.requestId,
+        issues: failure?.errors,
+      },
     )
   }
-  return json.data as T
+
+  return payload as T
 }
 
 /** Drops `null`s so API rows line up with the client's optional (`?:`) types. */

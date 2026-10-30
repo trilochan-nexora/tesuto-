@@ -242,8 +242,9 @@
     try {
       json = await res.json()
     } catch {}
+    // Errors are RFC 9457 problem+json: `detail` is the human message.
     const msg =
-      (json && json.error && json.error.message) || `HTTP ${res.status}`
+      (json && (json.detail || json.title)) || `HTTP ${res.status}`
     if (res.status === 401 && !path.startsWith("/widget/auth")) {
       // session expired (not a bad project token) — re-mint silently
       if (userToken && !/token/i.test(msg)) {
@@ -253,12 +254,13 @@
         throw new Error("unauthorized")
       }
     }
-    if (!res.ok || (json && json.error)) {
+    if (!res.ok) {
       const e = new Error(msg)
       e.status = res.status
+      if (json && json.code) e.code = json.code
       throw e
     }
-    return json && "data" in json ? json.data : json
+    return json
   }
   const apiGet = (p) => apiRaw("GET", p)
   const apiPost = (p, b) => apiRaw("POST", p, b || {})

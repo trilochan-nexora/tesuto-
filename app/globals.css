@@ -176,6 +176,49 @@
   }
 }
 
+/* The Swagger UI is a light surface. Keep its text selection readable instead
+   of inheriting the dark app theme's white foreground. */
+.swagger-page {
+  color-scheme: light;
+}
+.swagger-page ::selection {
+  background: #b4d5fe;
+  color: #111827;
+}
+/* Swagger UI hard-codes its own fonts and a 1460px column; bring it in line
+   with the app and keep the header compact. */
+.swagger-page .swagger-ui,
+.swagger-page .swagger-ui .info .title,
+.swagger-page .swagger-ui .opblock-tag,
+.swagger-page .swagger-ui .opblock .opblock-summary-description {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+.swagger-page .swagger-ui code,
+.swagger-page .swagger-ui .opblock-summary-path {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+.swagger-page .swagger-ui .wrapper {
+  max-width: 1100px;
+}
+.swagger-page .swagger-ui .info {
+  margin: 32px 0 16px;
+}
+.swagger-page .swagger-ui .info .description p {
+  margin: 4px 0;
+  font-size: 14px;
+  color: #4b5563;
+}
+/* One server only: the picker adds noise, Authorize stays. */
+.swagger-page .swagger-ui .scheme-container {
+  box-shadow: none;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 12px 0;
+}
+.swagger-page .swagger-ui .scheme-container .servers-title,
+.swagger-page .swagger-ui .scheme-container .servers {
+  display: none;
+}
+
 @layer utilities {
   @keyframes tesuto-rise {
     from {

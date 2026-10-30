@@ -1,13 +1,12 @@
 import { createHash } from "node:crypto"
-import { HttpError } from "./api"
+import { tooManyRequests } from "./api"
 
 type Entry = { count: number; resetAt: number }
 
 const globalForRateLimit = globalThis as unknown as {
   tesutoRateLimits?: Map<string, Entry>
 }
-const buckets =
-  globalForRateLimit.tesutoRateLimits ?? new Map<string, Entry>()
+const buckets = globalForRateLimit.tesutoRateLimits ?? new Map<string, Entry>()
 globalForRateLimit.tesutoRateLimits = buckets
 
 function requestIp(req: Request) {
@@ -38,7 +37,10 @@ export function enforceRateLimit(
     return
   }
   if (current.count >= options.limit) {
-    throw new HttpError("Too many requests — wait a few minutes and retry", 429)
+    throw tooManyRequests(
+      "Too many requests — wait a few minutes and retry",
+      current.resetAt - now,
+    )
   }
   current.count += 1
 

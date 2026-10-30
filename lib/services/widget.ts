@@ -1,5 +1,5 @@
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto"
-import { HttpError } from "@/lib/api"
+import { HttpError, tooManyRequests } from "@/lib/api"
 import { verifyAssertion } from "@/lib/assertion"
 import {
   bearerFrom,
@@ -199,7 +199,10 @@ export async function startLink(input: { assertion?: string; email?: string }) {
     existing?.lastSentAt &&
     Date.now() - existing.lastSentAt.getTime() < LINK_RESEND_WAIT_MS
   ) {
-    throw new HttpError("A code was just sent — wait a minute to resend", 429)
+    throw tooManyRequests(
+      "A code was just sent — wait a minute to resend",
+      existing.lastSentAt.getTime() + LINK_RESEND_WAIT_MS - Date.now(),
+    )
   }
   if (devCode && !/^\d{6}$/.test(devCode)) {
     throw new HttpError("AUTH_DEV_CODE must contain exactly 6 digits", 503)
@@ -327,6 +330,12 @@ export async function widgetBootstrap(req: Request) {
     where: { projectId: project.id },
     orderBy: { order: "asc" },
   })
+  // Assignable people for the app's assignee picker: active users only.
+  const members = await prisma.user.findMany({
+    where: { active: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, color: true },
+  })
   return {
     project: { id: project.id, key: project.key, name: project.name },
     user: { id: user.id, name: user.name, color: user.color },
@@ -336,6 +345,7 @@ export async function widgetBootstrap(req: Request) {
       dot: c.dot,
       terminal: c.terminal,
     })),
+    members,
   }
 }
 
@@ -363,7 +373,12 @@ function snapshotField(snap: unknown, key: "selector" | "text") {
 
 export async function widgetIssues(
   req: Request,
-  opts: { scope: "page" | "all"; url?: string },
+  opts: {
+    scope: "page" | "all" | "mine"
+    url?: string
+    limit: number
+    cursor?: string
+  },
 ) {
   const { user, project } = await widgetAuth(req)
   const rows = await prisma.ticket.findMany({
@@ -373,9 +388,14 @@ export async function widgetIssues(
       // "All" is the viewer's own queue: only tickets assigned to them.
       // Page scope stays unfiltered — triage needs the full page picture.
       ...(opts.scope === "all" ? { assigneeId: user.id } : {}),
+      // "Mine" is what the viewer reported.
+      ...(opts.scope === "mine" ? { reporterId: user.id } : {}),
     },
-    orderBy: { createdAt: "desc" },
-    take: 100,
+    // id breaks createdAt ties so cursor pages never skip or repeat a row.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    // One extra row tells us whether another page exists.
+    take: opts.limit + 1,
+    ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
     select: {
       id: true,
       key: true,
@@ -390,7 +410,9 @@ export async function widgetIssues(
       _count: { select: { comments: true } },
     },
   })
-  return rows.map(
+  const page = rows.slice(0, opts.limit)
+  const nextCursor = rows.length > opts.limit ? page.at(-1)?.id : undefined
+  const items = page.map(
     (r): ListRow => ({
       id: r.id,
       key: r.key,
@@ -406,6 +428,7 @@ export async function widgetIssues(
       open: !r.resolvedAt,
     }),
   )
+  return { items, nextCursor }
 }
 
 export async function widgetIssue(req: Request, id: string) {
@@ -498,12 +521,32 @@ export async function widgetAddComment(
 export async function widgetPatchIssue(
   req: Request,
   id: string,
-  patch: { priority?: string; status?: string },
+  patch: { priority?: string; status?: string; assigneeId?: string | null },
 ) {
   const { user, project } = await widgetAuth(req)
   await assertInProject(id, project.id)
+  if (patch.assigneeId) {
+    // Validate here so an unknown id is a 422, not a Prisma connect failure.
+    const assignee = await prisma.user.findUnique({
+      where: { id: patch.assigneeId },
+      select: { active: true },
+    })
+    if (!assignee?.active) {
+      throw new HttpError("Assignee not found", 422, "VALIDATION_ERROR", [
+        {
+          path: "assigneeId",
+          message: "Pick an active member from bootstrap.members",
+        },
+      ])
+    }
+  }
   const t = await patchTicket(id, patch, user.id)
-  return { id: t.id, status: t.status, priority: t.priority }
+  return {
+    id: t.id,
+    status: t.status,
+    priority: t.priority,
+    assigneeId: t.assigneeId,
+  }
 }
 
 export type WidgetCreateInput = {
@@ -517,6 +560,7 @@ export type WidgetCreateInput = {
   attachments?: Array<{ name: string; data: string }>
   domSnapshot?: unknown
   context?: unknown
+  idempotencyKey?: string
 }
 
 export async function widgetCreateIssue(
@@ -524,22 +568,61 @@ export async function widgetCreateIssue(
   input: WidgetCreateInput,
 ) {
   const { user, project } = await widgetAuth(req)
-  const ticket = await createTicket(
-    {
-      title: input.title,
-      description: input.description,
-      projectId: project.id,
-      priority: input.priority,
-      type: "bug",
-      sourceUrl: input.sourceUrl,
-      screenshotUrl: input.screenshot,
-      recordingUrl: input.recording,
-      voiceNote: input.voice,
-      attachments: input.attachments,
-      domSnapshot: input.domSnapshot,
-      context: input.context,
-    },
-    user.id,
-  )
-  return { id: ticket.id, key: ticket.key, title: ticket.title }
+  const replay = async () => {
+    if (!input.idempotencyKey) return null
+    const prior = await prisma.ticket.findUnique({
+      where: {
+        reporterId_idempotencyKey: {
+          reporterId: user.id,
+          idempotencyKey: input.idempotencyKey,
+        },
+      },
+      select: { id: true, key: true, title: true, projectId: true },
+    })
+    if (!prior) return null
+    if (prior.projectId !== project.id) {
+      throw new HttpError(
+        "Idempotency-Key was already used for another project",
+        409,
+        "IDEMPOTENCY_KEY_REUSED",
+      )
+    }
+    return { id: prior.id, key: prior.key, title: prior.title, replayed: true }
+  }
+
+  const prior = await replay()
+  if (prior) return prior
+  try {
+    const ticket = await createTicket(
+      {
+        title: input.title,
+        description: input.description,
+        projectId: project.id,
+        priority: input.priority,
+        type: "bug",
+        sourceUrl: input.sourceUrl,
+        screenshotUrl: input.screenshot,
+        recordingUrl: input.recording,
+        voiceNote: input.voice,
+        attachments: input.attachments,
+        domSnapshot: input.domSnapshot,
+        context: input.context,
+        idempotencyKey: input.idempotencyKey,
+      },
+      user.id,
+    )
+    return {
+      id: ticket.id,
+      key: ticket.key,
+      title: ticket.title,
+      replayed: false,
+    }
+  } catch (err) {
+    // Two concurrent retries with the same key: the loser replays the winner.
+    if ((err as { code?: string }).code === "P2002") {
+      const raced = await replay()
+      if (raced) return raced
+    }
+    throw err
+  }
 }

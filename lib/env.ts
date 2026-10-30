@@ -30,6 +30,16 @@ export function appUrl() {
   return read("APP_URL") || "http://localhost:3005"
 }
 
+/**
+ * Public origin for absolute URLs handed to clients (signed media links).
+ * Behind a proxy `req.url` can carry the internal host, so APP_URL wins when
+ * set; the request origin is only the fallback for local development.
+ */
+export function publicOrigin(req: Request) {
+  const configured = read("APP_URL")
+  return configured ? new URL(configured).origin : new URL(req.url).origin
+}
+
 export function githubClientId() {
   return read("GITHUB_CLIENT_ID")
 }

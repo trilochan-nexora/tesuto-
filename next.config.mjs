@@ -49,11 +49,18 @@ const nextConfig = {
           { key: "Access-Control-Allow-Origin", value: "*" },
           {
             key: "Access-Control-Allow-Methods",
-            value: "GET,POST,PATCH,OPTIONS",
+            value: "GET,POST,PATCH,DELETE,OPTIONS",
           },
           {
             key: "Access-Control-Allow-Headers",
-            value: "Authorization,Content-Type,X-Tesuto-Project",
+            value:
+              "Authorization,Content-Type,X-Tesuto-Project,Idempotency-Key",
+          },
+          {
+            // Let browser clients read the correlation id, paging cursor,
+            // back-off hint and idempotent-replay flag.
+            key: "Access-Control-Expose-Headers",
+            value: "X-Request-Id,X-Next-Cursor,Retry-After,Idempotent-Replayed",
           },
           { key: "Access-Control-Max-Age", value: "86400" },
         ],

@@ -59,7 +59,9 @@ export function parseReleaseNotes(md: string): ParsedRelease {
   const footerStart = md.indexOf("\n---\n")
   const details =
     detailsStart >= 0
-      ? md.slice(detailsStart, footerStart >= 0 ? footerStart : undefined).trim()
+      ? md
+          .slice(detailsStart, footerStart >= 0 ? footerStart : undefined)
+          .trim()
       : md.trim()
 
   return { compare, counts, summary, pmNote, details }

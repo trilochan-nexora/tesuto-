@@ -15,6 +15,24 @@ export const zHttpUrl = z
   .url()
   .refine((value) => /^https?:\/\//i.test(value), "Use an http(s) URL")
 
+/** Schemes that can execute or embed content when rendered as a link. */
+const UNSAFE_SCHEMES = /^(?:javascript|data|vbscript|file|blob|about):/i
+
+/**
+ * Where a widget report was filed: a web page (`https://…`) or a native app
+ * screen deep link (`myapp://orders/42`). Script-capable schemes are refused
+ * because the dashboard renders this as a link.
+ */
+export const zSourceUrl = z
+  .string()
+  .trim()
+  .max(2_048)
+  .refine(
+    (value) =>
+      /^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(value) && !UNSAFE_SCHEMES.test(value),
+    "Use an http(s) URL or an app deep link like myapp://screen",
+  )
+
 export const zRect = z.object({
   width: z.number().finite().min(0).max(100_000),
   height: z.number().finite().min(0).max(100_000),
@@ -80,13 +98,17 @@ export const zRecording = z
   .string()
   .max(15_000_000)
   // allow codec params (Chrome's MediaRecorder: "video/webm;codecs=vp9")
-  .regex(/^data:video\/(?:webm|mp4)(?:;[^;,=]+=[^;,]+)*;base64,[A-Za-z0-9+/=]+$/)
+  .regex(
+    /^data:video\/(?:webm|mp4)(?:;[^;,=]+=[^;,]+)*;base64,[A-Za-z0-9+/=]+$/,
+  )
 
 /** Browser-recorded voice note. The decoded payload is capped again on write. */
 export const zVoiceNote = z
   .string()
   .max(11_000_000)
-  .regex(/^data:audio\/(?:webm|mp4|mpeg|ogg|wav)(?:;[^;,=]+=[^;,]+)*;base64,[A-Za-z0-9+/=]+$/)
+  .regex(
+    /^data:audio\/(?:webm|mp4|mpeg|ogg|wav)(?:;[^;,=]+=[^;,]+)*;base64,[A-Za-z0-9+/=]+$/,
+  )
 
 /** Small evidence files sent inline by the dependency-free embedded widget. */
 export const zAttachment = z.object({

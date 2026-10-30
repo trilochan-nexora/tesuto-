@@ -1,27 +1,157 @@
 import { randomUUID } from "node:crypto"
 import { ZodError, type ZodTypeAny, type z } from "zod"
-import { getSessionUser, type SessionUser } from "./auth"
+import { bearerFrom, getSessionUser, type SessionUser } from "./auth"
 import { log, logError } from "./logger"
 
-/** Every API route answers with this envelope. `error` is null on success. */
+/** A field-level issue inside a problem response. */
+export type ProblemIssue = {
+  path: string
+  message: string
+  code?: string
+}
+
+/** RFC 9457 `application/problem+json` body. */
+export type ProblemDetails = {
+  type: string
+  title: string
+  status: number
+  detail: string
+  instance: string
+  code: string
+  requestId: string
+  errors?: ProblemIssue[]
+}
+
+const TITLES: Record<number, string> = {
+  400: "Bad request",
+  401: "Authentication required",
+  403: "Forbidden",
+  404: "Not found",
+  405: "Method not allowed",
+  409: "Conflict",
+  413: "Payload too large",
+  415: "Unsupported media type",
+  422: "Validation failed",
+  429: "Too many requests",
+  500: "Internal server error",
+  502: "Bad gateway",
+  503: "Service unavailable",
+  504: "Gateway timeout",
+}
+
+function codeForStatus(status: number): string {
+  switch (status) {
+    case 400:
+      return "BAD_REQUEST"
+    case 401:
+      return "UNAUTHORIZED"
+    case 403:
+      return "FORBIDDEN"
+    case 404:
+      return "NOT_FOUND"
+    case 409:
+      return "CONFLICT"
+    case 422:
+      return "VALIDATION_ERROR"
+    case 429:
+      return "RATE_LIMITED"
+    case 502:
+      return "BAD_GATEWAY"
+    case 503:
+      return "SERVICE_UNAVAILABLE"
+    default:
+      return status >= 500 ? "INTERNAL_SERVER_ERROR" : "REQUEST_FAILED"
+  }
+}
+
+function problemType(code: string): string {
+  return `urn:tesuto:problem:${code.toLowerCase().replaceAll("_", "-")}`
+}
+
+function problemTitle(status: number): string {
+  return TITLES[status] ?? "Request failed"
+}
+
+function requestIdFor(req?: Request): string {
+  const incoming = req?.headers.get("x-request-id") ?? ""
+  return /^[A-Za-z0-9_-]{8,128}$/.test(incoming) ? incoming : randomUUID()
+}
+
+function instanceFor(req?: Request): string {
+  if (!req) return ""
+  try {
+    return new URL(req.url).pathname
+  } catch {
+    return ""
+  }
+}
+
+/**
+ * Serialize a failure as `application/problem+json`.
+ *
+ * Success bodies are returned directly (`ok`), so there is no `data`/`error`
+ * envelope and no body `status` that can disagree with HTTP.
+ */
+export function problem(input: {
+  status: number
+  detail: string
+  code?: string
+  req?: Request
+  requestId?: string
+  errors?: ProblemIssue[]
+  headers?: HeadersInit
+}): Response {
+  const requestId = input.requestId ?? requestIdFor(input.req)
+  const code = input.code ?? codeForStatus(input.status)
+  const body: ProblemDetails = {
+    type: problemType(code),
+    title: problemTitle(input.status),
+    status: input.status,
+    detail: input.detail,
+    instance: instanceFor(input.req),
+    code,
+    requestId,
+    ...(input.errors?.length ? { errors: input.errors } : {}),
+  }
+
+  const headers = new Headers(input.headers)
+  headers.set("Content-Type", "application/problem+json")
+  headers.set("X-Request-Id", requestId)
+
+  return new Response(JSON.stringify(body), {
+    status: input.status,
+    headers,
+  })
+}
+
+/** Return a success body directly. `init` is useful for `Set-Cookie` headers. */
 export function ok<T>(data: T, init?: ResponseInit) {
-  return Response.json({ data, error: null }, init)
+  if (data === undefined) return new Response(null, init)
+  return Response.json(data, init)
 }
 
-export function fail(
-  message: string,
-  status = 400,
-  extra?: Record<string, unknown>,
-) {
-  return Response.json({ data: null, error: { message, ...extra } }, { status })
-}
-
-/** Throw from a service to return a specific status through the envelope. */
+/**
+ * Throw from a service to return a specific status. The route wrapper maps it
+ * to a problem response; services do not build error JSON themselves.
+ */
 export class HttpError extends Error {
   status: number
-  constructor(message: string, status = 400) {
+  code?: string
+  errors?: ProblemIssue[]
+  /** Extra response headers, e.g. `Retry-After` on 429. */
+  headers?: Record<string, string>
+
+  constructor(
+    message: string,
+    status = 400,
+    code?: string,
+    errors?: ProblemIssue[],
+  ) {
     super(message)
+    this.name = "HttpError"
     this.status = status
+    this.code = code
+    this.errors = errors
   }
 }
 
@@ -30,6 +160,15 @@ type RunCtx = {
   user: SessionUser
   params: Record<string, string>
   req: Request
+}
+
+/** A 429 that tells the client exactly how long to back off. */
+export function tooManyRequests(message: string, retryAfterMs: number) {
+  const error = new HttpError(message, 429, "RATE_LIMITED")
+  error.headers = {
+    "Retry-After": String(Math.max(1, Math.ceil(retryAfterMs / 1000))),
+  }
+  return error
 }
 
 type HandlerOpts<S extends ZodTypeAny | undefined> = {
@@ -44,10 +183,26 @@ type HandlerOpts<S extends ZodTypeAny | undefined> = {
   ) => unknown
 }
 
-function mapError(err: unknown, requestId: string): Response {
+function zodIssues(error: ZodError): ProblemIssue[] {
+  return error.issues.map((issue) => ({
+    path: issue.path.length ? issue.path.join(".") : "root",
+    message: issue.message,
+    code: issue.code,
+  }))
+}
+
+function mapError(err: unknown, requestId: string, req: Request): Response {
   if (err instanceof ZodError) {
-    return fail("Validation failed", 422, { issues: err.issues })
+    return problem({
+      status: 422,
+      code: "VALIDATION_ERROR",
+      detail: "Validation failed",
+      errors: zodIssues(err),
+      requestId,
+      req,
+    })
   }
+
   if (err instanceof HttpError) {
     // 5xx here means an upstream we depend on (GitHub, ClickUp) failed —
     // worth a server log, unlike a plain 4xx client mistake. Cloudflare also
@@ -56,17 +211,29 @@ function mapError(err: unknown, requestId: string): Response {
     if (err.status >= 500) {
       logError("api.error", err, { requestId, status: err.status })
     }
-    return fail(err.message, err.status)
+    return problem({
+      status: err.status,
+      code: err.code ?? codeForStatus(err.status),
+      detail: err.message,
+      errors: err.errors,
+      headers: err.headers,
+      requestId,
+      req,
+    })
   }
+
   logError("api.error", err, { requestId, status: 500 })
-  return fail("Internal error", 500)
+  return problem({
+    status: 500,
+    code: "INTERNAL_SERVER_ERROR",
+    detail: "Internal error",
+    requestId,
+    req,
+  })
 }
 
 function requestContext(req: Request) {
-  const incoming = req.headers.get("x-request-id") ?? ""
-  const requestId = /^[A-Za-z0-9_-]{8,128}$/.test(incoming)
-    ? incoming
-    : randomUUID()
+  const requestId = requestIdFor(req)
   const startedAt = performance.now()
   const pathname = new URL(req.url).pathname
   const finish = (response: Response) => {
@@ -85,8 +252,9 @@ function requestContext(req: Request) {
 
 /**
  * Thin wrapper for the `/api/widget/*` routes. No user/admin gate here —
- * `widgetAuth()` in the service does its own two-token check — just envelope +
- * error mapping + the Next 16 `params` promise. CORS comes from next.config.mjs.
+ * `widgetAuth()` in the service does its own two-token check — just error
+ * mapping, direct success bodies, and the Next 16 `params` promise. CORS comes
+ * from next.config.mjs.
  */
 export function widgetRoute(
   run: (req: Request, params: Record<string, string>) => unknown,
@@ -106,7 +274,7 @@ export function widgetRoute(
       const result = await run(req, params)
       return finish(result instanceof Response ? result : ok(result))
     } catch (err) {
-      return finish(mapError(err, requestId))
+      return finish(mapError(err, requestId, req))
     }
   }
 }
@@ -115,6 +283,8 @@ export function widgetRoute(
  * Wraps a route handler: auth + admin gate, Zod parse (query for GET/DELETE,
  * JSON body otherwise), `await`s the Next 16 `params` promise, and maps
  * ZodError → 422 / HttpError → its status / anything else → 500.
+ *
+ * Success bodies are returned as-is. Failures are RFC 9457 problem details.
  */
 export function handler<S extends ZodTypeAny | undefined = undefined>(
   opts: HandlerOpts<S>,
@@ -128,14 +298,48 @@ export function handler<S extends ZodTypeAny | undefined = undefined>(
     try {
       const needAuth = opts.auth !== false
       const user = needAuth ? await getSessionUser(req) : null
-      if (needAuth && !user) return finish(fail("Unauthorized", 401))
-      if (opts.admin && user?.role !== "admin") {
-        return finish(fail("Forbidden", 403))
+      if (needAuth && !user) {
+        return finish(
+          problem({
+            status: 401,
+            code: "UNAUTHORIZED",
+            detail: "Unauthorized",
+            requestId,
+            req,
+          }),
+        )
       }
-      if (needAuth && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+      if (opts.admin && user?.role !== "admin") {
+        return finish(
+          problem({
+            status: 403,
+            code: "FORBIDDEN",
+            detail: "Forbidden",
+            requestId,
+            req,
+          }),
+        )
+      }
+      // CSRF only rides on the ambient session cookie. A bearer token wins over
+      // the cookie in getSessionUser, and browsers cannot attach one
+      // cross-origin without CORS, so mobile WebViews (e.g. Capacitor's
+      // `capacitor://localhost` Origin) are not rejected here.
+      if (
+        needAuth &&
+        !bearerFrom(req) &&
+        !["GET", "HEAD", "OPTIONS"].includes(req.method)
+      ) {
         const origin = req.headers.get("origin")
         if (origin && origin !== new URL(req.url).origin) {
-          return finish(fail("Cross-origin request rejected", 403))
+          return finish(
+            problem({
+              status: 403,
+              code: "CROSS_ORIGIN_REJECTED",
+              detail: "Cross-origin request rejected",
+              requestId,
+              req,
+            }),
+          )
         }
       }
 
@@ -157,7 +361,7 @@ export function handler<S extends ZodTypeAny | undefined = undefined>(
       })
       return finish(result instanceof Response ? result : ok(result))
     } catch (err) {
-      return finish(mapError(err, requestId))
+      return finish(mapError(err, requestId, req))
     }
   }
 }

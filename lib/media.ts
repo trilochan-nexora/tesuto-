@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises"
 import { join, resolve } from "node:path"
-import { appSecret } from "./env"
+import { appSecret, publicOrigin } from "./env"
 
 export type MediaKind = "screenshot" | "recording" | "voice" | "attachment"
 
@@ -243,7 +243,7 @@ export function signedMediaUrl(req: Request, value: string | null) {
   if (!value?.startsWith("/api/media/")) return value
   const id = value.slice("/api/media/".length)
   const expires = Math.floor(Date.now() / 1000) + 15 * 60
-  const url = new URL(value, new URL(req.url).origin)
+  const url = new URL(value, publicOrigin(req))
   url.searchParams.set("expires", String(expires))
   url.searchParams.set("signature", grantSignature(id, expires))
   return url.toString()

@@ -21,81 +21,118 @@ Two files are served, both CORS-open and cacheable:
   `screenshotUrl`. No dependency. Cancel the prompt and the form just shows an
   "Add screenshot" button to retry; "Retake" / "Remove" once one is attached.
   Chromium pre-selects the current tab; other browsers show the full picker.
-- **Chat on the ticket** — after filing (store mode only), a chat panel opens on
-  that ticket. Messages are the ticket's Tesuto comments, so they appear in the
-  board's Discussion tab and replies typed there stream back into the panel
-  (polled every 2.5s). A "💬 Chat" pill reopens the latest thread.
+- **Chat on the ticket** — open an issue from the widget's list and the chat
+  panel reads/writes the ticket's Tesuto comments. Replies from the board's
+  Discussion tab appear in the panel (polled every 2.5s).
+- **Browse this page or your queue** — `scope=page` shows issues for the current
+  URL; `scope=all` shows tickets assigned to the signed-in user.
+- **Triage** — priority and status can be changed from the issue panel.
 
-## Get a token
+## Two things every embed needs
+
+### 1. A project token
 
 `data-project-token` / `token` comes from Tesuto: **Projects → pick one →
-"Widget token"**. Any project's token works; it decides which board the tickets
-land on. The seeded **Sandbox** project's token is fine for testing.
+"Widget token"**. It decides which board tickets land on and is safe to publish.
+Any project's token works; the seeded **Sandbox** project is fine for testing.
 
-## Filing mode
+### 2. A host-signed identity assertion
 
-Tesuto now has a real backend, so **point the widget at it**:
+The project token identifies the board, not the person. The host must prove who
+its signed-in user is by signing an assertion with `TESUTO_WIDGET_SECRET` on its
+own server:
 
+```text
+base64url({ email, name?, exp }) + "." + base64url(HMAC-SHA256(body, secret))
 ```
-data-endpoint="https://tesuto.example.com/api/widget/issues"
-```
 
-The widget `POST`s JSON with `Authorization: Bearer <project-token>`; the route
-resolves the project, files the ticket (reporter = the "Widget" system user),
-answers CORS/`OPTIONS` for any origin, and returns `{ data: { id, key, title } }`.
-Issues land on the board immediately; the Tesuto tab re-pulls on focus so they
-appear within a tab-switch. The `apps/web` / `apps/admin` embeds already pass
-this endpoint (`tesuto-widget.tsx`).
+- `exp` is unix **seconds** and must be at most 5 minutes in the future.
+- The secret stays server-side. Never put it in HTML, a browser bundle, or a
+  mobile app.
+- Tesuto verifies the signature, then either signs the host email in (if it is
+  already linked) or shows the email-code link screen.
 
-- **Legacy `localStorage` mode** (no `endpoint`): the widget writes to
-  `localStorage["tesuto:v3"]`. This is now a **dead end** — the app reads from
-  the API, not `localStorage` — so always set `endpoint`.
-- Per-ticket **chat** is disabled in `endpoint` mode until the widget redesign
-  wires it to `/api/widget/issues/:id/comments`.
+See [`docs/api/mobile-reporting.md`](../docs/api/mobile-reporting.md#1-mint-the-assertion-on-your-backend)
+for the exact signing code. The same assertion works for the widget.
 
----
+If the assertion is missing, the widget shows **"This host must provide a
+signed Tesuto identity assertion."**
 
 ## Plain HTML
 
+The page must be rendered by a server that can inject a fresh assertion. A
+static `.html` file cannot safely contain one.
+
 ```html
 <script
-  src="http://localhost:3005/widget.js"
+  src="https://tesuto.example.com/widget.js"
   data-project-token="tsto_pk_…"
+  data-assertion="<%= tesutoAssertion(currentUser) %>"
+  data-host-name="Hearth"
   defer
 ></script>
 ```
 
-Put it before `</body>` in the shared layout/template.
+If your template engine escapes attributes differently, HTML-escape the
+assertion (it is base64url plus a dot, so no special characters are expected).
+
+Put it before `</body>` in the shared layout/template. The widget talks directly
+to `<tesuto-origin>/api/widget/*`; there is no `endpoint` option to configure.
 
 ## React — Vite / CRA / any SPA
 
-No `index.html` edit needed. Add a component and render it once near the root.
+No `index.html` edit needed. Fetch an assertion from your backend, then start
+the loader once near the root.
 
 ```tsx
 // TesutoWidget.tsx
 import { useEffect } from "react"
-import { initTesutoWidget } from "http://localhost:3005/tesuto-widget.js"
+import { initTesutoWidget } from "https://tesuto.example.com/tesuto-widget.js"
 
 export function TesutoWidget(props: {
   token: string
-  endpoint?: string
-  shortcut?: string
+  hostName?: string
 }) {
   useEffect(() => {
-    initTesutoWidget(props)
-  }, [])
+    let cancelled = false
+
+    async function boot() {
+      const res = await fetch("/api/tesuto/assertion", {
+        credentials: "include",
+      })
+      if (!res.ok) return
+      const { assertion } = await res.json()
+      if (!cancelled) {
+        initTesutoWidget({
+          token: props.token,
+          assertion,
+          hostName: props.hostName,
+        })
+      }
+    }
+
+    void boot()
+    return () => {
+      cancelled = true
+    }
+  }, [props.token, props.hostName])
+
   return null
 }
 ```
 
 ```tsx
 // main.tsx / App.tsx
-<TesutoWidget token={import.meta.env.VITE_TESUTO_TOKEN} />
+<TesutoWidget token={import.meta.env.VITE_TESUTO_TOKEN} hostName="Hearth" />
 ```
 
 Prefer not to import from a URL? Copy `public/tesuto-widget.js` from the Tesuto
 repo into your project and import it locally:
 `import { initTesutoWidget } from "./tesuto-widget"`.
+
+`initTesutoWidget` only starts once per page. It does not expose a way to swap
+the assertion later. In a long-lived SPA, reload the widget (or the page) when
+the assertion expires; the widget session itself lasts 15 minutes.
 
 ## TanStack Router (SPA)
 
@@ -110,7 +147,7 @@ export const Route = createRootRoute({
   component: () => (
     <>
       <Outlet />
-      <TesutoWidget token={import.meta.env.VITE_TESUTO_TOKEN} />
+      <TesutoWidget token={import.meta.env.VITE_TESUTO_TOKEN} hostName="Hearth" />
     </>
   ),
 })
@@ -118,42 +155,87 @@ export const Route = createRootRoute({
 
 ## TanStack Start
 
-Load it from the client entry so it never runs on the server:
+Fetch the assertion in a client-only lifecycle, then start the loader:
 
 ```tsx
 // src/client.tsx  (or wherever hydrateRoot is called)
-import { initTesutoWidget } from "http://localhost:3005/tesuto-widget.js"
+import { initTesutoWidget } from "https://tesuto.example.com/tesuto-widget.js"
 
-initTesutoWidget({ token: import.meta.env.VITE_TESUTO_TOKEN })
+const res = await fetch("/api/tesuto/assertion", { credentials: "include" })
+const { assertion } = await res.json()
+initTesutoWidget({
+  token: import.meta.env.VITE_TESUTO_TOKEN,
+  assertion,
+  hostName: "Hearth",
+})
 ```
 
-Or the `<TesutoWidget>` component in `routes/__root.tsx` — its `useEffect`
+Or use the `<TesutoWidget>` component in `routes/__root.tsx` — its `useEffect`
 already makes it client-only.
 
 ## Next.js (App Router)
 
+Mint the assertion on the server and pass it to the script tag. Do not import
+`TESUTO_WIDGET_SECRET` into a client component.
+
 ```tsx
 // app/layout.tsx
 import Script from "next/script"
+import { tesutoAssertion } from "@/lib/tesuto-assertion"
 
-<Script
-  src="http://localhost:3005/widget.js"
-  strategy="afterInteractive"
-  data-project-token={process.env.NEXT_PUBLIC_TESUTO_TOKEN}
-/>
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const assertion = await tesutoAssertion()
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <Script
+          src="http://localhost:3005/widget.js"
+          strategy="afterInteractive"
+          data-project-token={process.env.NEXT_PUBLIC_TESUTO_TOKEN}
+          data-assertion={assertion}
+          data-host-name="Hearth"
+        />
+      </body>
+    </html>
+  )
+}
 ```
+
+`tesutoAssertion()` is your server helper: read the current user, sign with
+`TESUTO_WIDGET_SECRET`, and return the string. Keep it in `server-only` code.
 
 ## Vue / Svelte / Angular / Astro / etc.
 
-Use the loader in a client-only lifecycle hook (`onMounted`, `onMount`,
-`ngAfterViewInit`, a `client:only` island):
+Use the loader after fetching the assertion in a client-only lifecycle hook
+(`onMounted`, `onMount`, `ngAfterViewInit`, a `client:only` island):
 
 ```js
-import { initTesutoWidget } from "http://localhost:3005/tesuto-widget.js"
-initTesutoWidget({ token: "tsto_pk_…" })
+import { initTesutoWidget } from "https://tesuto.example.com/tesuto-widget.js"
+
+const res = await fetch("/api/tesuto/assertion", { credentials: "include" })
+const { assertion } = await res.json()
+initTesutoWidget({ token: "tsto_pk_…", assertion, hostName: "Hearth" })
 ```
 
----
+## First-time reporter
+
+If Tesuto has never seen the host email, the widget shows **Link your Tesuto
+account**:
+
+1. The reporter enters their Tesuto email.
+2. Tesuto mails a 6-digit code (10 minutes, 5 attempts, one resend per minute).
+3. The code links the host email to that Tesuto user and signs them in.
+
+The reporter must already be an active Tesuto user. If they are not, an admin
+must invite them first (`POST /api/users`). Unknown emails intentionally get the
+same success response but no mail.
+
+The link is permanent for that host email; the widget does not ask again.
 
 ## Verify
 
@@ -162,11 +244,17 @@ Load a page. A **"Report a bug"** pill appears bottom-right;
 parent) — the screen-share prompt fires right away; grant it and the shot lands
 in the form with the element outlined. Fill the form, submit.
 
-- localStorage mode + same origin as Tesuto → the ticket shows on the board,
-  the chat panel opens, and a reply from the board's Discussion tab appears in
-  the panel within a few seconds.
-- `endpoint` mode → confirm the `POST` reached your API (screenshot arrives as
-  the `screenshot` field); the form ends at `✓ Filed …`, no chat.
+- The ticket shows on the board immediately; the Tesuto tab re-pulls on focus.
+- Open the issue from the widget list; the chat panel reads/writes real ticket
+  comments.
+- If you see **"This host must provide a signed Tesuto identity assertion"**,
+  the script tag/loader did not receive `assertion`.
+- If you see **"That sign-in proof is invalid or expired"**, the assertion is
+  older than 5 minutes, signed with the wrong secret, or `exp` is wrong.
+- If you see **"Missing project token"** or **"That project token isn't
+  recognised"**, check `data-project-token` / `token`.
 
 Don't vendor `widget.js` — always load it from the Tesuto origin so it stays
 current. `tesuto-widget.js` is small and stable enough to copy if you prefer.
+For the mobile API flow, see
+[`docs/api/mobile-reporting.md`](../docs/api/mobile-reporting.md).
