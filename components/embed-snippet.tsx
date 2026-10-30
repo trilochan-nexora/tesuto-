@@ -52,10 +52,10 @@ export function CopyableCode({
   )
 }
 
-export function embedSnippet(
-  token: string,
-  origin = "https://tesuto.company.com",
-) {
+/** Production origin — the fallback until the browser's own origin is known. */
+export const TESUTO_ORIGIN = "https://tesuto.madebynexora.com"
+
+export function embedSnippet(token: string, origin = TESUTO_ORIGIN) {
   return `<script
   src="${origin}/widget.js"
   data-project-token="${token}"

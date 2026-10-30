@@ -131,7 +131,7 @@ export const POST = handler({
       throw new HttpError("That board has no items to import", 422)
     }
     const name = input.name ?? title
-    if (!name) throw new HttpError("Couldn't read the board title", 502)
+    if (!name) throw new HttpError("Couldn't read the board title", 424)
     const prepared = await mapLimit(items, 4, withMedia)
     const issues = prepared.map(({ item: i, media, body }) => ({
       title: i.title,

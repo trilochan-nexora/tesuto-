@@ -156,6 +156,11 @@ const PROBLEM_META: Record<
     title: "Internal server error",
     detail: "Internal error",
   },
+  424: {
+    code: "UPSTREAM_FAILED",
+    title: "Upstream provider failed",
+    detail: "Upstream request failed",
+  },
   502: {
     code: "BAD_GATEWAY",
     title: "Bad gateway",
@@ -319,9 +324,9 @@ const errors = {
     500,
     "Unexpected server error. The response carries `X-Request-Id`; include it when reporting the problem.",
   ),
-  502: problemJson(
-    502,
-    "An upstream provider (GitHub or ClickUp) failed. `detail` may include the provider's reason.",
+  424: problemJson(
+    424,
+    "An upstream provider (GitHub or ClickUp) failed. `detail` may include the provider's reason. (Not 502, which Cloudflare replaces with its own error page.)",
   ),
   503: problemJson(
     503,
@@ -1792,7 +1797,7 @@ route("/api/tickets/{id}/sync-github", "post", {
     401: errors[401],
     403: errors[403],
     404: errors[404],
-    502: errors[502],
+    424: errors[424],
   },
 })
 
@@ -2200,7 +2205,7 @@ route("/api/import/github/projects", "get", {
     200: json(ok(arrayOf(ref("GithubProject"))), "Visible boards."),
     401: errors[401],
     403: errors[403],
-    502: errors[502],
+    424: errors[424],
   },
 })
 
@@ -2217,7 +2222,7 @@ route("/api/import/github", "post", {
     404: errors[404],
     409: errors[409],
     422: errors[422],
-    502: errors[502],
+    424: errors[424],
   },
 })
 
@@ -2232,7 +2237,7 @@ route("/api/import/clickup/teams", "post", {
     401: errors[401],
     403: errors[403],
     422: errors[422],
-    502: errors[502],
+    424: errors[424],
   },
 })
 
@@ -2247,7 +2252,7 @@ route("/api/import/clickup/lists", "post", {
     401: errors[401],
     403: errors[403],
     422: errors[422],
-    502: errors[502],
+    424: errors[424],
   },
 })
 
@@ -2265,7 +2270,7 @@ route("/api/import/clickup", "post", {
     403: errors[403],
     409: errors[409],
     422: errors[422],
-    502: errors[502],
+    424: errors[424],
   },
 })
 

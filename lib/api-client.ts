@@ -97,10 +97,15 @@ async function apiFetch<T = unknown>(
 
   if (!res.ok) {
     const failure = isProblem(payload) ? payload : null
+    // A proxy error page (e.g. Cloudflare's 502) is HTML, not a message.
+    const html =
+      typeof payload === "string" && /^\s*<(!doctype|html)/i.test(payload)
     const fallback =
-      typeof payload === "string" && payload.length > 0
+      typeof payload === "string" && payload.length > 0 && !html
         ? payload
-        : `Request failed (${res.status})`
+        : res.status >= 502 && res.status <= 504
+          ? `The server is unavailable right now (${res.status}). Try again in a minute.`
+          : `Request failed (${res.status})`
     throw new ApiError(
       failure?.detail ?? failure?.title ?? fallback,
       res.status,

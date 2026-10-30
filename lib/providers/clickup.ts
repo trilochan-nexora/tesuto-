@@ -36,12 +36,12 @@ async function cu<T>(token: string, path: string): Promise<T> {
     if (res.status === 401) {
       throw new HttpError(
         "That ClickUp token was rejected — check the pk_ token",
-        502,
+        424,
       )
     }
     throw new HttpError(
       `${message}${body?.ECODE ? ` (${body.ECODE})` : ""}`,
-      502,
+      424,
     )
   }
   return body as unknown as T

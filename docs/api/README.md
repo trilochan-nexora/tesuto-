@@ -193,9 +193,9 @@ Grants are scoped to one media id and one expiry.
 | `404` | Resource not found (or not visible in the current project) |
 | `409` | Conflict: duplicate key/email, last admin, user has history, key allocation failure |
 | `422` | Zod validation failed; inspect `errors` |
+| `424` | Upstream provider (GitHub/ClickUp) failed; message may include the reason |
 | `429` | Rate limited; wait `Retry-After` seconds |
 | `500` | Unexpected server error or missing server configuration |
-| `502` | Upstream provider (GitHub/ClickUp) failed; message may include the reason |
 | `503` | Required dependency is not configured (email, widget secret, media storage) |
 
 `429` responses are problem details. Login/link codes also have database-backed

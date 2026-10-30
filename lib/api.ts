@@ -32,6 +32,7 @@ const TITLES: Record<number, string> = {
   413: "Payload too large",
   415: "Unsupported media type",
   422: "Validation failed",
+  424: "Upstream provider failed",
   429: "Too many requests",
   500: "Internal server error",
   502: "Bad gateway",
@@ -53,6 +54,8 @@ function codeForStatus(status: number): string {
       return "CONFLICT"
     case 422:
       return "VALIDATION_ERROR"
+    case 424:
+      return "UPSTREAM_FAILED"
     case 429:
       return "RATE_LIMITED"
     case 502:

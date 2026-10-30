@@ -132,7 +132,7 @@ export async function exchangeCode(code: string): Promise<string> {
         : "") ||
       (typeof body?.error === "string" ? body.error : "") ||
       `GitHub rejected the code (${res.status})`
-    throw new HttpError(message, 502)
+    throw new HttpError(message, 424)
   }
   return token
 }
@@ -149,7 +149,7 @@ export async function fetchGithubUser(token: string): Promise<{
   if (!ok || !login) {
     throw new HttpError(
       `GitHub lookup failed (${status}): ${githubMessage(body)}`,
-      502,
+      424,
     )
   }
   return { login, name, id }
@@ -184,7 +184,7 @@ export async function createGithubIssue(
           : ""
     throw new HttpError(
       `GitHub issue creation failed (${status}): ${githubMessage(body)}${hint}`,
-      502,
+      424,
     )
   }
   const htmlUrl = typeof body?.html_url === "string" ? body.html_url : ""

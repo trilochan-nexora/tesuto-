@@ -3,17 +3,23 @@
 import { GlobeIcon, KeyIcon, KanbanIcon, WarningIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
-import { use, useState } from "react"
+import { use, useState, useSyncExternalStore } from "react"
 import { toast } from "sonner"
 import { AppHeader } from "@/components/app-header"
 import { ConfirmDialog } from "@/components/confirm-dialog"
-import { CopyableCode, embedSnippet } from "@/components/embed-snippet"
+import {
+  CopyableCode,
+  embedSnippet,
+  TESUTO_ORIGIN,
+} from "@/components/embed-snippet"
 import { GithubIcon } from "@/components/icons"
 import { PageBack } from "@/components/page-back"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { useStore } from "@/lib/store"
+
+const noopSubscribe = () => () => {}
 
 export default function ProjectSettingsPage({
   params,
@@ -24,6 +30,13 @@ export default function ProjectSettingsPage({
   const { getProject, tickets, projects, deleteProject, updateProject } =
     useStore()
   const router = useRouter()
+  // The origin this app is served from (prod, staging, localhost); the
+  // server render falls back to production.
+  const origin = useSyncExternalStore(
+    noopSubscribe,
+    () => window.location.origin,
+    () => TESUTO_ORIGIN,
+  )
   const project = getProject(id)
   const [repo, setRepo] = useState(project?.githubRepo ?? "")
 
@@ -102,7 +115,10 @@ export default function ProjectSettingsPage({
               The same token works across every origin you embed it on.
             </p>
           </div>
-          <CopyableCode code={embedSnippet(project.token)} label="Snippet" />
+          <CopyableCode
+            code={embedSnippet(project.token, origin)}
+            label="Snippet"
+          />
           <p className="text-xs text-muted-foreground">
             <code className="text-xs">/widget.js</code> is a real,
             dependency-free script — this demo ships it. Testing on this app
