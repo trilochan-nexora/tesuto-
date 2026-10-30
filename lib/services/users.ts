@@ -10,6 +10,7 @@ import {
   emailFrom,
   resendApiKey,
 } from "@/lib/env"
+import { GithubAuthError } from "@/lib/github"
 import { devMailFallback, logDevAuthCode, sendAuthEmail } from "@/lib/notify"
 import { PROJECT_COLORS } from "@/lib/types"
 
@@ -25,7 +26,30 @@ export async function connectedGithubToken(userId: string): Promise<string> {
   if (!user?.githubConnected || !user.githubToken) {
     throw new HttpError("Connect your GitHub account first", 400)
   }
-  return decryptToken(user.githubToken)
+  try {
+    return decryptToken(user.githubToken)
+  } catch {
+    // Sealed under a previous APP_SECRET — unusable, so unlink like a revoke.
+    await unlinkGithubAccount(userId)
+    throw new GithubAuthError()
+  }
+}
+
+/**
+ * Runs a GitHub call with the user's token. If GitHub rejects the token, the
+ * stale link is dropped so Settings shows "Connect" instead of "Connected".
+ */
+export async function withGithubToken<T>(
+  userId: string,
+  run: (token: string) => Promise<T>,
+): Promise<T> {
+  const token = await connectedGithubToken(userId)
+  try {
+    return await run(token)
+  } catch (e) {
+    if (e instanceof GithubAuthError) await unlinkGithubAccount(userId)
+    throw e
+  }
 }
 
 /**

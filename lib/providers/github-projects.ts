@@ -1,4 +1,5 @@
 import { HttpError } from "@/lib/api"
+import { GithubAuthError } from "@/lib/github"
 
 /**
  * GitHub Projects (v2) pull via the GraphQL API, using the signed-in user's
@@ -123,13 +124,7 @@ async function gql<T>(
     body: JSON.stringify({ query, variables }),
   })
   const body = (await res.json().catch(() => null)) as GqlResult<T> | null
-  // Not 401: the client treats that as an expired Tesuto session.
-  if (res.status === 401) {
-    throw new HttpError(
-      "Your GitHub connection has expired — reconnect GitHub in Settings.",
-      400,
-    )
-  }
+  if (res.status === 401) throw new GithubAuthError()
   // 424, not 502: Cloudflare swaps an origin 502 for its own HTML error page,
   // hiding this message from the user.
   if (!res.ok || body?.errors?.length) {

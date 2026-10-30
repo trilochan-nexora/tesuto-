@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { ZodError, type ZodTypeAny, type z } from "zod"
 import { bearerFrom, getSessionUser, type SessionUser } from "./auth"
+import { publicOrigin } from "./env"
 import { log, logError } from "./logger"
 
 /** A field-level issue inside a problem response. */
@@ -283,6 +284,25 @@ export function widgetRoute(
 }
 
 /**
+ * Behind a proxy `req.url` carries the internal origin, so a same-site
+ * browser Origin is also matched against APP_URL and the host the browser
+ * actually addressed. Browsers can't forge Origin or Host cross-site.
+ */
+function isSameOrigin(req: Request, origin: string) {
+  if (origin === new URL(req.url).origin || origin === publicOrigin(req)) {
+    return true
+  }
+  const host =
+    req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ??
+    req.headers.get("host")
+  try {
+    return !!host && new URL(origin).host === host
+  } catch {
+    return false
+  }
+}
+
+/**
  * Wraps a route handler: auth + admin gate, Zod parse (query for GET/DELETE,
  * JSON body otherwise), `await`s the Next 16 `params` promise, and maps
  * ZodError → 422 / HttpError → its status / anything else → 500.
@@ -333,7 +353,7 @@ export function handler<S extends ZodTypeAny | undefined = undefined>(
         !["GET", "HEAD", "OPTIONS"].includes(req.method)
       ) {
         const origin = req.headers.get("origin")
-        if (origin && origin !== new URL(req.url).origin) {
+        if (origin && !isSameOrigin(req, origin)) {
           return finish(
             problem({
               status: 403,

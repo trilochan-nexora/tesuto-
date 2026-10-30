@@ -1,7 +1,7 @@
 import { handler } from "@/lib/api"
 import { listGithubProjects } from "@/lib/providers/github-projects"
 import { requireIntegration } from "@/lib/services/settings"
-import { connectedGithubToken } from "@/lib/services/users"
+import { withGithubToken } from "@/lib/services/users"
 
 /**
  * Boards the connected GitHub account can see, for the import picker. Needs a
@@ -13,7 +13,6 @@ export const GET = handler({
       "integration.github_projects_import",
       "GitHub Projects import",
     )
-    const token = await connectedGithubToken(user.id)
-    return listGithubProjects(token)
+    return withGithubToken(user.id, listGithubProjects)
   },
 })

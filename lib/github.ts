@@ -82,6 +82,20 @@ export function callbackUrl(origin: string) {
 
 type JsonObject = Record<string, unknown>
 
+/**
+ * GitHub answered 401 for a stored token: the grant was revoked or expired.
+ * 400, not 401 — the client treats 401 as an expired Tesuto session.
+ */
+export class GithubAuthError extends HttpError {
+  constructor() {
+    super(
+      "Your GitHub connection has expired — reconnect GitHub in Settings.",
+      400,
+      "github_reauth",
+    )
+  }
+}
+
 async function githubFetch(
   path: string,
   token: string,
@@ -175,6 +189,7 @@ export async function createGithubIssue(
       body: JSON.stringify({ title: input.title, body: input.body }),
     },
   )
+  if (status === 401) throw new GithubAuthError()
   if (!ok) {
     const hint =
       status === 403

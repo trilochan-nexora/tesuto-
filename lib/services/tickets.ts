@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto"
 import { HttpError } from "@/lib/api"
-import { decryptToken } from "@/lib/crypto"
 import { prisma } from "@/lib/db"
 import { appUrl } from "@/lib/env"
 import { createGithubIssue } from "@/lib/github"
@@ -13,6 +12,7 @@ import {
   notifyTicketUnassigned,
 } from "@/lib/notify"
 import { sanitizeRichText } from "@/lib/sanitize"
+import { withGithubToken } from "@/lib/services/users"
 import type { MediaAttachment, TicketEvent } from "@/lib/types"
 import { DEFAULT_COLUMNS } from "@/lib/types"
 import { Prisma } from "@/prisma/generated/client"
@@ -532,13 +532,14 @@ export async function syncTicketToGithub(id: string, actorId: string) {
     )
   }
 
-  const token = decryptToken(user.githubToken)
-  const { htmlUrl } = await createGithubIssue({
-    token,
-    repo,
-    title: `${ticket.key}: ${ticket.title}`,
-    body: issueBody(ticket),
-  })
+  const { htmlUrl } = await withGithubToken(actorId, (token) =>
+    createGithubIssue({
+      token,
+      repo,
+      title: `${ticket.key}: ${ticket.title}`,
+      body: issueBody(ticket),
+    }),
+  )
 
   const events = [...((ticket.events as unknown as TicketEvent[]) ?? [])]
   events.push({ at: new Date().toISOString(), kind: "synced", actorId })

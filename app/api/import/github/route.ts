@@ -8,7 +8,7 @@ import {
 } from "@/lib/providers/github-projects"
 import { type ImportedMedia, importProject } from "@/lib/services/projects"
 import { requireIntegration } from "@/lib/services/settings"
-import { connectedGithubToken } from "@/lib/services/users"
+import { withGithubToken } from "@/lib/services/users"
 
 const ImportSchema = z.object({
   projectId: z.string().min(1),
@@ -122,10 +122,8 @@ export const POST = handler({
       "integration.github_projects_import",
       "GitHub Projects import",
     )
-    const token = await connectedGithubToken(user.id)
-    const { title, columns, items } = await listGithubItems(
-      token,
-      input.projectId,
+    const { title, columns, items } = await withGithubToken(user.id, (token) =>
+      listGithubItems(token, input.projectId),
     )
     if (!items.length) {
       throw new HttpError("That board has no items to import", 422)
