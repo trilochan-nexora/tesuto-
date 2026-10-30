@@ -52,9 +52,10 @@ function isProblem(value: unknown): value is ProblemDetails {
 async function apiFetch<T = unknown>(
   path: string,
   init: RequestInit = {},
+  timeoutMs = 20_000,
 ): Promise<T> {
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), 20_000)
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs)
   const abort = () => controller.abort()
   init.signal?.addEventListener("abort", abort, { once: true })
   let res: Response
@@ -129,11 +130,16 @@ export function stripNull<T>(value: T): T {
 
 export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
-  post: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, {
-      method: "POST",
-      body: body === undefined ? undefined : JSON.stringify(body),
-    }),
+  /** `timeoutMs` overrides the 20s default for long-running calls (imports). */
+  post: <T>(path: string, body?: unknown, timeoutMs?: number) =>
+    apiFetch<T>(
+      path,
+      {
+        method: "POST",
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+      timeoutMs,
+    ),
   patch: <T>(path: string, body: unknown) =>
     apiFetch<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   del: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),

@@ -279,9 +279,11 @@ export function ImportDialog({
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder={ghBoard?.title ?? "Pick a board"}>
-                    {(v: string) => {
+                    {(v: string | null) => {
                       const board = ghProjects.find((p) => p.id === v)
-                      return `${board?.owner ?? ""} · ${board?.title ?? ""} — ${board?.items ?? 0} items`
+                      return board
+                        ? `${board.owner} · ${board.title} — ${board.items} items`
+                        : "Pick a board"
                     }}
                   </SelectValue>
                 </SelectTrigger>

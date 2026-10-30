@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { HttpError, handler } from "@/lib/api"
 import { clickupTasks } from "@/lib/providers/clickup"
-import { importProject } from "@/lib/services/projects"
+import { assertNameAvailable, importProject } from "@/lib/services/projects"
 import { requireIntegration } from "@/lib/services/settings"
 
 const ImportSchema = z.object({
@@ -20,6 +20,7 @@ export const POST = handler({
   schema: ImportSchema,
   run: async (input, { user }) => {
     await requireIntegration("integration.clickup_import", "ClickUp import")
+    await assertNameAvailable(input.name)
     const tasks = await clickupTasks(input.token, input.listId)
     if (!tasks.length) {
       throw new HttpError("That list has no tasks to import", 422)

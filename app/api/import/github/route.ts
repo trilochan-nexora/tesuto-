@@ -6,7 +6,11 @@ import {
   type GithubMedia,
   listGithubItems,
 } from "@/lib/providers/github-projects"
-import { type ImportedMedia, importProject } from "@/lib/services/projects"
+import {
+  assertNameAvailable,
+  type ImportedMedia,
+  importProject,
+} from "@/lib/services/projects"
 import { requireIntegration } from "@/lib/services/settings"
 import { withGithubToken } from "@/lib/services/users"
 
@@ -130,6 +134,8 @@ export const POST = handler({
     }
     const name = input.name ?? title
     if (!name) throw new HttpError("Couldn't read the board title", 424)
+    // Before the media pull, which can take minutes on a large board.
+    await assertNameAvailable(name)
     const prepared = await mapLimit(items, 4, withMedia)
     const issues = prepared.map(({ item: i, media, body }) => ({
       title: i.title,

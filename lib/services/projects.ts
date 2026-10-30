@@ -37,7 +37,7 @@ async function freshKey(name: string) {
   return projectKeyFrom(name, new Set(existing.map((p) => p.key)))
 }
 
-async function assertNameAvailable(name: string) {
+export async function assertNameAvailable(name: string) {
   const clash = await prisma.project.findFirst({
     where: { name: { equals: name.trim(), mode: "insensitive" } },
     select: { id: true },

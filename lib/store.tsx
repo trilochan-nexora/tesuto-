@@ -12,8 +12,8 @@ import {
   type Doc,
   type IntegrationKey,
   type Integrations,
-  type NotificationFeed,
   type IssueType,
+  type NotificationFeed,
   type Project,
   type Sprint,
   type Ticket,
@@ -56,6 +56,8 @@ type Bootstrap = {
 }
 
 const NO_SPRINTS: Sprint[] = []
+/** Imports pull whole boards plus media; 20s cuts off big ones mid-run. */
+const IMPORT_TIMEOUT_MS = 10 * 60_000
 
 const DEFAULT_INTEGRATIONS: Integrations = {
   slack: { enabled: true, available: true },
@@ -411,6 +413,7 @@ export const useStore = create<StoreState>((set, get) => {
         await api.post<Project & { tickets: Ticket[] }>(
           "/import/github",
           input,
+          IMPORT_TIMEOUT_MS,
         ),
       )
       return ingestImported(created)
@@ -420,6 +423,7 @@ export const useStore = create<StoreState>((set, get) => {
         await api.post<Project & { tickets: Ticket[] }>(
           "/import/clickup",
           input,
+          IMPORT_TIMEOUT_MS,
         ),
       )
       return ingestImported(created)
