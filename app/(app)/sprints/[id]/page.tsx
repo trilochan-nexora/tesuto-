@@ -1,14 +1,13 @@
 "use client"
 
-import { EyeIcon, DotsThreeIcon, PencilIcon, TrashIcon } from "@phosphor-icons/react"
+import { DotsThreeIcon, TrashIcon } from "@phosphor-icons/react"
 import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
 import { use, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { AppHeader } from "@/components/app-header"
 import { DocRail } from "@/components/doc-rail"
-import { MarkdownField } from "@/components/markdown-field"
-import { MarkdownLite } from "@/components/markdown-lite"
+import { TiptapEditor } from "@/components/tiptap-editor"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -57,9 +56,6 @@ function DocEditor({ doc }: { doc: Doc }) {
 
   const [title, setTitle] = useState(doc.title)
   const [content, setContent] = useState(doc.content)
-  const [mode, setMode] = useState<"write" | "read">(
-    doc.content.trim() ? "read" : "write",
-  )
 
   // Debounced autosave.
   useEffect(() => {
@@ -124,23 +120,6 @@ function DocEditor({ doc }: { doc: Doc }) {
           {author?.name} · edited {formatRelativeTime(doc.updatedAt)}
         </span>
         <div className="ml-auto flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setMode(mode === "read" ? "write" : "read")}
-          >
-            {mode === "read" ? (
-              <>
-                <PencilIcon data-icon="inline-start" />
-                Edit
-              </>
-            ) : (
-              <>
-                <EyeIcon data-icon="inline-start" />
-                Preview
-              </>
-            )}
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -173,25 +152,13 @@ function DocEditor({ doc }: { doc: Doc }) {
           className="shrink-0 bg-transparent text-3xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground"
         />
 
-        {mode === "write" ? (
-          <MarkdownField
-            value={content}
-            onChange={setContent}
-            placeholder={"Type / for blocks · [[doc title]] links · # - > [] auto-format • markdown works too"}
-            fill
-          />
-        ) : content.trim() ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <MarkdownLite content={content} resolveWikiLink={resolveWikiLink} />
-          </div>
-        ) : (
-          <button
-            onClick={() => setMode("write")}
-            className="w-fit text-sm text-muted-foreground hover:text-foreground"
-          >
-            This document is empty — click to start writing.
-          </button>
-        )}
+        <TiptapEditor
+          value={content}
+          onChange={setContent}
+          placeholder="Type / for blocks · [[doc title]] links · markdown shortcuts work too"
+          resolveWikiLink={resolveWikiLink}
+          onOpenLink={(href) => router.push(href)}
+        />
 
         {backlinks.length > 0 ? (
           <div className="mt-2 flex shrink-0 flex-col gap-2 border-t pt-4">

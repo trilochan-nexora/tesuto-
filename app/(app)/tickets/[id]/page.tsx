@@ -11,17 +11,13 @@ import {
 } from "@phosphor-icons/react"
 import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
-import { use, useEffect, useState } from "react"
+import { use, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { AppHeader } from "@/components/app-header"
 import { GithubIcon } from "@/components/icons"
 import { NewTicketDialog } from "@/components/new-ticket-dialog"
 import { PageBack } from "@/components/page-back"
-import {
-  isEmptyHtml,
-  RichText,
-  RichTextEditor,
-} from "@/components/rich-text-editor"
+import { isEmptyHtml } from "@/components/rich-text-editor"
 import { ScreenshotEditor } from "@/components/screenshot-editor"
 import {
   PriorityBadge,
@@ -41,6 +37,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TiptapEditor } from "@/components/tiptap-editor"
 import { Textarea } from "@/components/ui/textarea"
 import { formatDuration, hoursBetween } from "@/lib/analytics"
 import { useStore } from "@/lib/store"
@@ -110,6 +107,54 @@ function AttachmentList({ items }: { items?: MediaAttachment[] }) {
   )
 }
 
+/**
+ * Always-editable block editor for the description: `/` for blocks, select
+ * text for the formatting bubble. Saves after a pause, on blur, and on
+ * unmount. Seeded once — the store's sanitized copy coming back from the
+ * server must not reset the editor mid-typing.
+ */
+function DescriptionEditor({
+  description,
+  onSave,
+}: {
+  description: string
+  onSave: (html: string) => void
+}) {
+  const [draft, setDraft] = useState(description)
+  const saved = useRef(description)
+  const pending = useRef(draft)
+  pending.current = draft
+  const onSaveRef = useRef(onSave)
+  onSaveRef.current = onSave
+
+  const flush = useRef(() => {
+    const next = pending.current
+    if (next === saved.current) return
+    if (isEmptyHtml(next) && isEmptyHtml(saved.current)) return
+    saved.current = next
+    onSaveRef.current(next)
+  }).current
+
+  useEffect(() => {
+    const t = setTimeout(flush, 800)
+    return () => clearTimeout(t)
+  }, [draft, flush])
+
+  useEffect(() => flush, [flush])
+
+  return (
+    <TiptapEditor
+      format="html"
+      variant="inline"
+      value={draft}
+      onChange={setDraft}
+      onBlur={flush}
+      placeholder="Add a description… type / for blocks"
+      className="max-w-[68ch]"
+    />
+  )
+}
+
 export default function TicketDetailPage({
   params,
 }: {
@@ -141,8 +186,6 @@ export default function TicketDetailPage({
   const router = useRouter()
   const ticket = getTicket(id)
   const [draft, setDraft] = useState("")
-  const [editingDesc, setEditingDesc] = useState(false)
-  const [descDraft, setDescDraft] = useState("")
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState("")
   const [commentsError, setCommentsError] = useState(false)
@@ -283,62 +326,16 @@ export default function TicketDetailPage({
               )}
             </div>
 
-            {editingDesc ? (
-              <div className="flex max-w-[68ch] flex-col gap-2">
-                <RichTextEditor
-                  value={descDraft}
-                  onChange={setDescDraft}
-                  minHeight={140}
-                  autoFocus
-                />
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditingDesc(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      updateTicket(ticket.id, {
-                        description: isEmptyHtml(descDraft)
-                          ? undefined
-                          : descDraft,
-                      })
-                      setEditingDesc(false)
-                    }}
-                  >
-                    Save
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="group/desc flex flex-col gap-2">
-                {ticket.description ? (
-                  <RichText
-                    html={ticket.description}
-                    className="max-w-[68ch]"
-                  />
-                ) : (
-                  <p className="text-sm italic text-muted-foreground">
-                    No description was captured with this report.
-                  </p>
-                )}
-                <button
-                  onClick={() => {
-                    setDescDraft(ticket.description ?? "")
-                    setEditingDesc(true)
-                  }}
-                  className="w-fit text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/desc:opacity-100"
-                >
-                  {ticket.description
-                    ? "Edit description"
-                    : "Add a description"}
-                </button>
-              </div>
-            )}
+            {/* keyed so the draft reseeds when you switch tickets */}
+            <DescriptionEditor
+              key={ticket.id}
+              description={ticket.description ?? ""}
+              onSave={(html) =>
+                updateTicket(ticket.id, {
+                  description: isEmptyHtml(html) ? undefined : html,
+                })
+              }
+            />
 
             {ticket.screenshotUrl ? (
               <section className="flex flex-col gap-2">
@@ -961,20 +958,22 @@ export default function TicketDetailPage({
                   Sync to GitHub
                 </Button>
               )}
-              <p className="text-xs text-muted-foreground">
-                {githubSyncOff ? (
-                  "GitHub sync is disabled — an admin can turn it on in Settings → Integrations."
-                ) : (
-                  <>
-                    Creates an issue in{" "}
-                    <code className="text-xs">
-                      {project?.githubRepo ?? "…"}
-                    </code>{" "}
-                    under your own GitHub account. The board stays the source of
-                    truth.
-                  </>
-                )}
-              </p>
+              {ticket.githubIssueUrl ? null : (
+                <p className="text-xs text-muted-foreground">
+                  {githubSyncOff ? (
+                    "GitHub sync is disabled — an admin can turn it on in Settings → Integrations."
+                  ) : (
+                    <>
+                      Creates an issue in{" "}
+                      <code className="text-xs">
+                        {project?.githubRepo ?? "…"}
+                      </code>{" "}
+                      under your own GitHub account. The board stays the source
+                      of truth.
+                    </>
+                  )}
+                </p>
+              )}
             </div>
           </aside>
         </div>

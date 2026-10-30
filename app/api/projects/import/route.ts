@@ -17,7 +17,7 @@ const ImportSchema = z.object({
         resolved: z.boolean(),
       }),
     )
-    .max(1_000),
+    .max(5_000),
 })
 
 export const POST = handler({

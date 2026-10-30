@@ -216,8 +216,8 @@ export function ImportDialog({
         <DialogHeader>
           <DialogTitle>Import tickets</DialogTitle>
           <DialogDescription>
-            Pull an external board in as a new Tesuto project. Items arrive as
-            tasks; closed ones start resolved.
+            Pull an external board in as a new Tesuto project. Closed items
+            start resolved.
           </DialogDescription>
         </DialogHeader>
 

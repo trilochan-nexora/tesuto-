@@ -1,9 +1,14 @@
+import { randomUUID } from "node:crypto"
 import { HttpError } from "@/lib/api"
 import { prisma } from "@/lib/db"
-import { deleteStoredMedia } from "@/lib/media"
+import {
+  deleteStoredMedia,
+  type PreparedMedia,
+  prepareMedia,
+} from "@/lib/media"
 import { sanitizeRichText } from "@/lib/sanitize"
 import { makeProjectToken } from "@/lib/tokens"
-import type { TicketEvent } from "@/lib/types"
+import type { MediaAttachment, TicketEvent } from "@/lib/types"
 import { COLUMN_DOTS, DEFAULT_COLUMNS, PROJECT_COLORS } from "@/lib/types"
 import type { Prisma } from "@/prisma/generated/client"
 
@@ -137,6 +142,18 @@ export type ImportedIssue = {
    * GitHub Projects "Status" field value), when known. Falls back to
    * `resolved` when absent or when it doesn't match one of `columns`. */
   status?: string
+  /** Source-side assignee logins, matched to users by `githubLogin`. */
+  assignees?: string[]
+  /** Link back to the source issue (shown as "View on GitHub"). */
+  url?: string
+  /** Files copied from the source issue, as base64 data URLs. */
+  media?: ImportedMedia[]
+}
+
+export type ImportedMedia = {
+  kind: "screenshot" | "recording" | "attachment"
+  data: string
+  name: string
 }
 
 /** A source board's own column, carried over 1:1 instead of Tesuto's generic
@@ -150,6 +167,8 @@ export async function importProject(
     source: string
     issues: ImportedIssue[]
     columns?: ImportedColumn[]
+    /** "owner/repo" for the project's "Sync to GitHub", when known. */
+    githubRepo?: string
   },
   actorId: string,
 ) {
@@ -173,55 +192,123 @@ export async function importProject(
   const doneCol = columnDefs.find((c) => c.terminal) ?? columnDefs.at(-1)!
   const firstCol = columnDefs[0]
   const iso = new Date()
+  const logins = input.issues.flatMap((i) => i.assignees ?? [])
+  const byLogin = new Map(
+    (logins.length
+      ? await prisma.user.findMany({
+          where: { githubLogin: { in: logins, mode: "insensitive" } },
+          select: { id: true, githubLogin: true },
+        })
+      : []
+    ).map((u) => [u.githubLogin!.toLowerCase(), u.id]),
+  )
 
-  const project = await prisma.project.create({
-    data: {
-      key,
-      name: input.name.trim(),
-      description: input.description.trim(),
-      color: PROJECT_COLORS[count % PROJECT_COLORS.length],
-      token: makeProjectToken(),
-      columns: { create: columnDefs.map(({ id, ...c }) => ({ id, ...c })) },
-      tickets: {
-        create: input.issues.map((issue, i) => {
-          // A closed/merged GitHub issue is ground truth — land it in the
-          // terminal column even if its board "Status" field was never
-          // dragged to match (very common: people close the issue without
-          // updating the card). Otherwise, mirror the board's own column.
-          const wantedLabel = issue.status?.trim().toLowerCase()
-          const target = issue.resolved
-            ? doneCol
-            : (wantedLabel &&
+  // Store each issue's media up front (ids are fixed so the rows can point at
+  // their ticket). A file that fails validation is skipped, not fatal.
+  const ticketIds = input.issues.map(() => randomUUID())
+  const stored = await Promise.all(
+    input.issues.map(async (issue, i) =>
+      (
+        await Promise.all(
+          (issue.media ?? []).map((m) =>
+            prepareMedia(m.data, m.kind, ticketIds[i], m.name).catch(
+              () => null,
+            ),
+          ),
+        )
+      ).filter((m): m is PreparedMedia => m !== null),
+    ),
+  )
+  const allMedia = stored.flat()
+
+  const createImported = (tx: Prisma.TransactionClient) =>
+    tx.project.create({
+      data: {
+        key,
+        name: input.name.trim(),
+        description: input.description.trim(),
+        color: PROJECT_COLORS[count % PROJECT_COLORS.length],
+        token: makeProjectToken(),
+        githubRepo:
+          input.githubRepo && REPO_PATTERN.test(input.githubRepo)
+            ? input.githubRepo
+            : null,
+        columns: { create: columnDefs.map(({ id, ...c }) => ({ id, ...c })) },
+        tickets: {
+          create: input.issues.map((issue, i) => {
+            // Mirror the board's own Status column exactly; only fall back to
+            // closed -> terminal column when the item has no matching status.
+            const wantedLabel = issue.status?.trim().toLowerCase()
+            const target =
+              (wantedLabel &&
                 columnDefs.find(
                   (c) => c.label.trim().toLowerCase() === wantedLabel,
                 )) ||
-              firstCol
-          const events: TicketEvent[] = [
-            { at: iso.toISOString(), kind: "created", actorId },
-          ]
-          if (target.terminal) {
-            events.push({
-              at: iso.toISOString(),
-              kind: "status",
-              to: target.id,
-            })
-          }
-          return {
-            key: `${key}-${i + 1}`,
-            title: issue.title,
-            description: issue.body ? sanitizeRichText(issue.body) : null,
-            status: target.id,
-            priority: issue.priority,
-            type: issue.type,
-            reporterId: actorId,
-            order: i,
-            resolvedAt: target.terminal ? iso : null,
-            events: events as unknown as Prisma.InputJsonValue,
-          }
-        }),
+              (issue.resolved ? doneCol : firstCol)
+            const events: TicketEvent[] = [
+              { at: iso.toISOString(), kind: "created", actorId },
+            ]
+            if (target.terminal) {
+              events.push({
+                at: iso.toISOString(),
+                kind: "status",
+                to: target.id,
+              })
+            }
+            const media = stored[i]
+            const attachments: MediaAttachment[] = media
+              .filter((m) => m.kind === "attachment")
+              .map((m) => ({
+                id: m.id,
+                name: m.name,
+                kind: "attachment",
+                mimeType: m.mimeType,
+                size: m.size,
+                url: m.url,
+              }))
+            return {
+              id: ticketIds[i],
+              key: `${key}-${i + 1}`,
+              title: issue.title,
+              description: issue.body ? sanitizeRichText(issue.body) : null,
+              status: target.id,
+              priority: issue.priority,
+              type: issue.type,
+              reporterId: actorId,
+              assigneeId:
+                issue.assignees
+                  ?.map((l) => byLogin.get(l.toLowerCase()))
+                  .find(Boolean) ?? null,
+              order: i,
+              resolvedAt: target.terminal ? iso : null,
+              events: events as unknown as Prisma.InputJsonValue,
+              githubIssueUrl: issue.url ?? null,
+              screenshotUrl:
+                media.find((m) => m.kind === "screenshot")?.url ?? null,
+              recordingUrl:
+                media.find((m) => m.kind === "recording")?.url ?? null,
+              attachments: attachments.length
+                ? (attachments as unknown as Prisma.InputJsonValue)
+                : undefined,
+            }
+          }),
+        },
       },
-    },
-    include: { tickets: true },
-  })
-  return project
+      include: { tickets: true },
+    })
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const created = await createImported(tx)
+      if (allMedia.length) {
+        await tx.mediaObject.createMany({
+          data: allMedia.map(({ url: _url, name: _name, ...item }) => item),
+        })
+      }
+      return created
+    })
+  } catch (error) {
+    await deleteStoredMedia(allMedia)
+    throw error
+  }
 }
